@@ -44,10 +44,22 @@ if ($seccion === 'inventario') {
 } elseif ($seccion === 'calendario') {
     try {
         $prestamos = obtener_todos_prestamos($con);
-        $prestamosActivos = array_filter($prestamos, function($p) {
+        $prestamosActivos = array_filter($prestamos, function ($p) {
             return $p['estado'] === 'activo';
         });
         $prestamosActivos = array_values($prestamosActivos);
+    } catch (Exception $e) {
+        $error_db = $e->getMessage();
+    }
+} elseif ($seccion === 'reportes') {
+    try {
+        $kpis = obtener_kpis_reportes($con);
+        $topLibros = obtener_libros_mas_prestados($con);
+        $prestamosMateria = obtener_prestamos_por_materia($con);
+        $distribucionEstados = obtener_estado_prestamos($con);
+        $librosAlerta = obtener_libros_bajo_stock($con);
+        $alumnosDeudores = obtener_estudiantes_con_mas_retrasos($con);
+        $logMovimientos = obtener_movimientos_recientes($con);
     } catch (Exception $e) {
         $error_db = $e->getMessage();
     }
@@ -80,8 +92,7 @@ if ($seccion === 'inventario') {
                 </a>
 
                 <!-- Opción de Usuarios -->
-                <a href="admin.php?seccion=usuarios" 
-                    class="nav-item <?= $seccion === 'usuarios' ? 'active' : '' ?>">
+                <a href="admin.php?seccion=usuarios" class="nav-item <?= $seccion === 'usuarios' ? 'active' : '' ?>">
                     <span class="icon">👥</span> Usuarios
                 </a>
 
@@ -89,13 +100,14 @@ if ($seccion === 'inventario') {
                 <a href="admin.php?seccion=prestamos" class="nav-item <?= $seccion === 'prestamos' ? 'active' : '' ?>">
                     <span class="icon">🔄</span> Préstamos
                 </a>
-                
+
                 <!-- Opción de Calendario -->
-                <a href="admin.php?seccion=calendario" class="nav-item <?= $seccion === 'calendario' ? 'active' : '' ?>">
+                <a href="admin.php?seccion=calendario"
+                    class="nav-item <?= $seccion === 'calendario' ? 'active' : '' ?>">
                     <span class="icon">📅</span> Calendario
                 </a>
 
-                <a href="#" class="nav-item" style="opacity: 0.5; cursor: not-allowed;" title="Próximamente">
+                <a href="admin.php?seccion=reportes" class="nav-item <?= $seccion === 'reportes' ? 'active' : '' ?>">
                     <span class="icon">📊</span> Reportes
                 </a>
             </nav>
@@ -112,289 +124,864 @@ if ($seccion === 'inventario') {
 
         <!-- Contenido Principal -->
         <main class="main-content">
-<?php if ($seccion === 'inventario'): ?>
-            <header class="top-header">
-                <h1>Inventario de Libros</h1>
-                <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
-                    <div class="search-box" style="position: relative;">
-                        <span
-                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;"></span>
-                        <input type="text" id="searchInput" placeholder="Buscar por titulo..." onkeyup="filtrarTabla()"
-                            style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+            <?php if ($seccion === 'inventario'): ?>
+                <header class="top-header">
+                    <h1>Inventario de Libros</h1>
+                    <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
+                        <div class="search-box" style="position: relative;">
+                            <span
+                                style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;"></span>
+                            <input type="text" id="searchInput" placeholder="Buscar por titulo..." onkeyup="filtrarTabla()"
+                                style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                        </div>
+                        <button class="btn-primary" onclick="abrirModalCrear()"
+                            style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Libro</button>
                     </div>
-                    <button class="btn-primary" onclick="abrirModalCrear()"
-                        style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Libro</button>
-                </div>
-            </header>
+                </header>
 
-            <div class="content-body">
-                <!-- Tabla del inventario (Con datos de prueba listos para ser cambiados por BDD) -->
-                <div class="table-container">
-                    <table class="data-table" id="inventory-table">
-                        <thead>
-                            <tr>
-                                <th class="sortable" onclick="ordenarTabla(0, 'inventory-table')" style="cursor: pointer;" title="Haz clic para ordenar">ID <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(1, 'inventory-table')" style="cursor: pointer;" title="Haz clic para ordenar">Título <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(2, 'inventory-table')" style="cursor: pointer;" title="Haz clic para ordenar">Autor/a <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(3, 'inventory-table')" style="cursor: pointer;" title="Haz clic para ordenar">Categoría <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(4, 'inventory-table')" style="cursor: pointer;" title="Haz clic para ordenar">Stock <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(5, 'inventory-table')" style="cursor: pointer;" title="Haz clic para ordenar">Estado <span class="sort-icon"></span></th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($libros)): ?>
-                                <?php foreach ($libros as $libro): ?>
-                                    <?php
-                                    $stock = (int) $libro['cantidad'];
-                                    $min_stock = (int) $libro['stock_minimo'];
+                <div class="content-body">
+                    <!-- Tabla del inventario (Con datos de prueba listos para ser cambiados por BDD) -->
+                    <div class="table-container">
+                        <table class="data-table" id="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" onclick="ordenarTabla(0, 'inventory-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">ID <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(1, 'inventory-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Título <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(2, 'inventory-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Autor/a <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(3, 'inventory-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Categoría <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(4, 'inventory-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Stock <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(5, 'inventory-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Estado <span
+                                            class="sort-icon"></span></th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($libros)): ?>
+                                    <?php foreach ($libros as $libro): ?>
+                                        <?php
+                                        $stock = (int) $libro['cantidad'];
+                                        $min_stock = (int) $libro['stock_minimo'];
 
-                                    if ($stock <= 0) {
-                                        $estado_clase = "background: rgba(254, 226, 226, 0.8); color: #991b1b; border: 1px solid #fecaca;";
-                                        $estado_texto = "Agotado";
-                                    } elseif ($stock <= $min_stock) {
-                                        $estado_clase = "background-color: rgba(254, 243, 199, 0.8); color: #92400e; border: 1px solid #f59e0b;";
-                                        $estado_texto = "Poco Stock";
-                                    } else {
-                                        $estado_clase = "background-color: rgba(209, 250, 229, 0.8); color: #065f46; border: 1px solid #10b981;";
-                                        $estado_texto = "Disponible";
-                                    }
-                                    ?>
+                                        if ($stock <= 0) {
+                                            $estado_clase = "background: rgba(254, 226, 226, 0.8); color: #991b1b; border: 1px solid #fecaca;";
+                                            $estado_texto = "Agotado";
+                                        } elseif ($stock <= $min_stock) {
+                                            $estado_clase = "background-color: rgba(254, 243, 199, 0.8); color: #92400e; border: 1px solid #f59e0b;";
+                                            $estado_texto = "Poco Stock";
+                                        } else {
+                                            $estado_clase = "background-color: rgba(209, 250, 229, 0.8); color: #065f46; border: 1px solid #10b981;";
+                                            $estado_texto = "Disponible";
+                                        }
+                                        ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($libro['id']) ?></td>
+                                            <td><?= htmlspecialchars($libro['titulo']) ?></td>
+                                            <td><?= htmlspecialchars($libro['autor_nombre'] ?? 'Sin autor') ?></td>
+                                            <td><?= htmlspecialchars($libro['categoria_nombre'] ?? 'Sin categoría') ?></td>
+                                            <td><?= htmlspecialchars($libro['cantidad']) ?></td>
+                                            <td><span class="status-badge" style="<?= $estado_clase ?>"><?= $estado_texto ?></span>
+                                            </td>
+                                            <td>
+                                                <button class="btn-icon" title="Editar"
+                                                    onclick='abrirModalEditar(<?= htmlspecialchars(json_encode($libro), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
+                                                <button class="btn-icon" title="Eliminar"
+                                                    onclick='abrirModalEliminar(<?= $libro['id'] ?>, <?= htmlspecialchars(json_encode($libro['titulo']), ENT_QUOTES, "UTF-8") ?>)'>🗑️</button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
                                     <tr>
-                                        <td><?= htmlspecialchars($libro['id']) ?></td>
-                                        <td><?= htmlspecialchars($libro['titulo']) ?></td>
-                                        <td><?= htmlspecialchars($libro['autor_nombre'] ?? 'Sin autor') ?></td>
-                                        <td><?= htmlspecialchars($libro['categoria_nombre'] ?? 'Sin categoría') ?></td>
-                                        <td><?= htmlspecialchars($libro['cantidad']) ?></td>
-                                        <td><span class="status-badge" style="<?= $estado_clase ?>"><?= $estado_texto ?></span>
-                                        </td>
-                                        <td>
-                                            <button class="btn-icon" title="Editar"
-                                                onclick='abrirModalEditar(<?= htmlspecialchars(json_encode($libro), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
-                                            <button class="btn-icon" title="Eliminar"
-                                                onclick='abrirModalEliminar(<?= $libro['id'] ?>, <?= htmlspecialchars(json_encode($libro['titulo']), ENT_QUOTES, "UTF-8") ?>)'>🗑️</button>
+                                        <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">
+                                            📦 No hay libros registrados en la base de datos.<br>
+                                            <?php if (isset($error_db))
+                                                echo "<span style='color:red;'>$error_db</span>"; ?>
                                         </td>
                                     </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">
-                                        📦 No hay libros registrados en la base de datos.<br>
-                                        <?php if (isset($error_db))
-                                            echo "<span style='color:red;'>$error_db</span>"; ?>
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-<?php elseif ($seccion === 'usuarios'): ?>
-            <header class="top-header">
-                <h1>Panel de Usuarios</h1>
-                <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
-                    <div class="search-box" style="position: relative;">
-                        <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
-                        <input type="text" id="searchUser" placeholder="Buscar usuario..." onkeyup="filtrarUsuarios()" 
-                            style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
-                    <button class="btn-primary" onclick="abrirModalUsuarioCrear()"
-                        style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Usuario</button>
                 </div>
-            </header>
+            <?php elseif ($seccion === 'usuarios'): ?>
+                <header class="top-header">
+                    <h1>Panel de Usuarios</h1>
+                    <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
+                        <div class="search-box" style="position: relative;">
+                            <span
+                                style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
+                            <input type="text" id="searchUser" placeholder="Buscar usuario..." onkeyup="filtrarUsuarios()"
+                                style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                        </div>
+                        <button class="btn-primary" onclick="abrirModalUsuarioCrear()"
+                            style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Usuario</button>
+                    </div>
+                </header>
 
-            <div class="content-body">
-                <div class="table-container">
-                    <table class="data-table" id="users-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Usuario</th>
-                                <th>Nombre</th>
-                                <th>Correo</th>
-                                <th>Rol</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($usuarios)): ?>
-                                <?php foreach ($usuarios as $usr): ?>
-                                    <?php 
+                <div class="content-body">
+                    <div class="table-container">
+                        <table class="data-table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Usuario</th>
+                                    <th>Nombre</th>
+                                    <th>Correo</th>
+                                    <th>Rol</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($usuarios)): ?>
+                                    <?php foreach ($usuarios as $usr): ?>
+                                        <?php
                                         $rol_class = "";
-                                        if ($usr['rol'] == 'admin') $rol_class = "background: rgba(254, 226, 226, 0.8); color: #991b1b; border: 1px solid #fecaca;";
-                                        if ($usr['rol'] == 'bibliotecario') $rol_class = "background: rgba(219, 234, 254, 0.8); color: #1e40af; border: 1px solid #bfdbfe;";
-                                        if ($usr['rol'] == 'estudiante') $rol_class = "background: rgba(209, 250, 229, 0.8); color: #065f46; border: 1px solid #10b981;";
-                                        
+                                        if ($usr['rol'] == 'admin')
+                                            $rol_class = "background: rgba(254, 226, 226, 0.8); color: #991b1b; border: 1px solid #fecaca;";
+                                        if ($usr['rol'] == 'bibliotecario')
+                                            $rol_class = "background: rgba(219, 234, 254, 0.8); color: #1e40af; border: 1px solid #bfdbfe;";
+                                        if ($usr['rol'] == 'estudiante')
+                                            $rol_class = "background: rgba(209, 250, 229, 0.8); color: #065f46; border: 1px solid #10b981;";
+
                                         $is_activo = ($usr['estado'] == 1);
                                         $estado_texto = $is_activo ? 'Activo' : 'Inactivo';
                                         $estado_class = $is_activo ? "background: #d1fae5; color: #065f46;" : "background: #fee2e2; color: #991b1b;";
-                                    ?>
+                                        ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($usr['id']) ?></td>
+                                            <td><strong><?= htmlspecialchars($usr['usuario']) ?></strong></td>
+                                            <td><?= htmlspecialchars($usr['nombre']) ?></td>
+                                            <td><?= htmlspecialchars($usr['correo']) ?></td>
+                                            <td><span class="status-badge"
+                                                    style="<?= $rol_class ?>"><?= ucfirst(htmlspecialchars($usr['rol'])) ?></span>
+                                            </td>
+                                            <td><span class="status-badge" style="<?= $estado_class ?>"><?= $estado_texto ?></span>
+                                            </td>
+                                            <td>
+                                                <button class="btn-icon" title="Editar"
+                                                    onclick='abrirModalUsuarioEditar(<?= htmlspecialchars(json_encode($usr), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
                                     <tr>
-                                        <td><?= htmlspecialchars($usr['id']) ?></td>
-                                        <td><strong><?= htmlspecialchars($usr['usuario']) ?></strong></td>
-                                        <td><?= htmlspecialchars($usr['nombre']) ?></td>
-                                        <td><?= htmlspecialchars($usr['correo']) ?></td>
-                                        <td><span class="status-badge" style="<?= $rol_class ?>"><?= ucfirst(htmlspecialchars($usr['rol'])) ?></span></td>
-                                        <td><span class="status-badge" style="<?= $estado_class ?>"><?= $estado_texto ?></span></td>
-                                        <td>
-                                            <button class="btn-icon" title="Editar" onclick='abrirModalUsuarioEditar(<?= htmlspecialchars(json_encode($usr), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
-                                        </td>
+                                        <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">👥
+                                            No hay usuarios registrados.</td>
                                     </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">👥 No hay usuarios registrados.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-<?php elseif ($seccion === 'prestamos'): ?>
-            <header class="top-header">
-                <div>
-                    <h1 style="font-family: 'Playfair Display', serif; font-size: 2.2rem; color: #111827; margin-bottom: 0.25rem;">Préstamos</h1>
-                    <span style="color: var(--text-light); font-size: 0.95rem;">Todas las reservas de la comunidad y su estado de devolución.</span>
-                </div>
-                <div class="header-actions" style="display: flex; gap: 1rem; align-items: center;">
-                    <div class="search-box" style="position: relative;">
-                        <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
-                        <input type="text" id="searchPrestamo" placeholder="Buscar por libro o estudiante..." onkeyup="filtrarPrestamos()" 
-                            style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </header>
+            <?php elseif ($seccion === 'prestamos'): ?>
+                <header class="top-header">
+                    <div>
+                        <h1
+                            style="font-family: 'Playfair Display', serif; font-size: 2.2rem; color: #111827; margin-bottom: 0.25rem;">
+                            Préstamos</h1>
+                        <span style="color: var(--text-light); font-size: 0.95rem;">Todas las reservas de la comunidad y su
+                            estado de devolución.</span>
+                    </div>
+                    <div class="header-actions" style="display: flex; gap: 1rem; align-items: center;">
+                        <div class="search-box" style="position: relative;">
+                            <span
+                                style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
+                            <input type="text" id="searchPrestamo" placeholder="Buscar por libro o estudiante..."
+                                onkeyup="filtrarPrestamos()"
+                                style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                        </div>
+                    </div>
+                </header>
 
-            <div class="content-body">
-                <!-- Filtros (Pills) -->
-                <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem;">
-                    <?php 
-                        $activos = 0; $devueltos = 0;
-                        foreach($prestamos as $p) {
-                            if($p['estado'] == 'activo') $activos++;
-                            if($p['estado'] == 'devuelto') $devueltos++;
+                <div class="content-body">
+                    <!-- Filtros (Pills) -->
+                    <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem;">
+                        <?php
+                        $activos = 0;
+                        $devueltos = 0;
+                        foreach ($prestamos as $p) {
+                            if ($p['estado'] == 'activo')
+                                $activos++;
+                            if ($p['estado'] == 'devuelto')
+                                $devueltos++;
                         }
-                    ?>
-                    <button class="filter-pill active" onclick="filtrarEstadoPrestamo('todos', this)" style="padding: 0.4rem 1rem; border-radius: 9999px; border: 1px solid var(--text-light); background: #111827; color: white; cursor: pointer; font-weight: 600; transition: all 0.2s;">Todos</button>
-                    <button class="filter-pill" onclick="filtrarEstadoPrestamo('activo', this)" style="padding: 0.4rem 1rem; border-radius: 9999px; border: 1px solid #e5e7eb; background: white; color: var(--text-color); cursor: pointer; font-weight: 600; transition: all 0.2s;">Activos <span style="background: rgba(0,0,0,0.05); padding: 0.1rem 0.4rem; border-radius: 9999px; font-size: 0.8rem; margin-left: 0.25rem;"><?= $activos ?></span></button>
-                    <button class="filter-pill" onclick="filtrarEstadoPrestamo('devuelto', this)" style="padding: 0.4rem 1rem; border-radius: 9999px; border: 1px solid #e5e7eb; background: white; color: var(--text-color); cursor: pointer; font-weight: 600; transition: all 0.2s;">Devueltos <span style="background: rgba(0,0,0,0.05); padding: 0.1rem 0.4rem; border-radius: 9999px; font-size: 0.8rem; margin-left: 0.25rem;"><?= $devueltos ?></span></button>
-                </div>
-
-                <?php if (isset($_GET['msg'])): ?>
-                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-                        ✅ <?= htmlspecialchars($_GET['msg']) ?>
+                        ?>
+                        <button class="filter-pill active" onclick="filtrarEstadoPrestamo('todos', this)"
+                            style="padding: 0.4rem 1rem; border-radius: 9999px; border: 1px solid var(--text-light); background: #111827; color: white; cursor: pointer; font-weight: 600; transition: all 0.2s;">Todos</button>
+                        <button class="filter-pill" onclick="filtrarEstadoPrestamo('activo', this)"
+                            style="padding: 0.4rem 1rem; border-radius: 9999px; border: 1px solid #e5e7eb; background: white; color: var(--text-color); cursor: pointer; font-weight: 600; transition: all 0.2s;">Activos
+                            <span
+                                style="background: rgba(0,0,0,0.05); padding: 0.1rem 0.4rem; border-radius: 9999px; font-size: 0.8rem; margin-left: 0.25rem;"><?= $activos ?></span></button>
+                        <button class="filter-pill" onclick="filtrarEstadoPrestamo('devuelto', this)"
+                            style="padding: 0.4rem 1rem; border-radius: 9999px; border: 1px solid #e5e7eb; background: white; color: var(--text-color); cursor: pointer; font-weight: 600; transition: all 0.2s;">Devueltos
+                            <span
+                                style="background: rgba(0,0,0,0.05); padding: 0.1rem 0.4rem; border-radius: 9999px; font-size: 0.8rem; margin-left: 0.25rem;"><?= $devueltos ?></span></button>
                     </div>
-                <?php endif; ?>
-                <?php if (isset($_GET['error'])): ?>
-                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-                        ⚠️ <?= htmlspecialchars($_GET['error']) ?>
-                    </div>
-                <?php endif; ?>
 
-                <div class="table-container">
-                    <table class="data-table" id="prestamos-table">
-                        <thead>
-                            <tr>
-                                <th class="sortable" onclick="ordenarTabla(0, 'prestamos-table')" style="cursor: pointer;" title="Haz clic para ordenar">ID <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(1, 'prestamos-table')" style="cursor: pointer;" title="Haz clic para ordenar">Libro <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(2, 'prestamos-table')" style="cursor: pointer;" title="Haz clic para ordenar">Estudiante <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(3, 'prestamos-table')" style="cursor: pointer;" title="Haz clic para ordenar">Solicitado <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(4, 'prestamos-table')" style="cursor: pointer;" title="Haz clic para ordenar">Vence <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(5, 'prestamos-table')" style="cursor: pointer;" title="Haz clic para ordenar">Estado <span class="sort-icon"></span></th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($prestamos)): ?>
-                                <?php foreach ($prestamos as $p): ?>
-                                    <?php 
+                    <?php if (isset($_GET['msg'])): ?>
+                        <div
+                            style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            ✅ <?= htmlspecialchars($_GET['msg']) ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (isset($_GET['error'])): ?>
+                        <div
+                            style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            ⚠️ <?= htmlspecialchars($_GET['error']) ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="table-container">
+                        <table class="data-table" id="prestamos-table">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" onclick="ordenarTabla(0, 'prestamos-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">ID <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(1, 'prestamos-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Libro <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(2, 'prestamos-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Estudiante <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(3, 'prestamos-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Solicitado <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(4, 'prestamos-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Vence <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(5, 'prestamos-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Estado <span
+                                            class="sort-icon"></span></th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($prestamos)): ?>
+                                    <?php foreach ($prestamos as $p): ?>
+                                        <?php
                                         $es_activo = $p['estado'] == 'activo';
                                         $estado_class = $es_activo ? "background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe;" : "background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb;";
                                         $estado_texto = $es_activo ? "Activo" : "Devuelto";
-                                    ?>
-                                    <tr data-estado="<?= $p['estado'] ?>">
-                                        <td style="color: var(--text-light); font-size: 0.85rem;">PRE-<?= str_pad($p['id_prestamo'], 4, '0', STR_PAD_LEFT) ?></td>
-                                        <td>
-                                            <strong style="display: block; color: var(--text-color);"><?= htmlspecialchars($p['titulo']) ?></strong>
-                                            <span style="font-size: 0.8rem; color: var(--text-light);"><?= htmlspecialchars($p['nombre_autor'] ?? 'Desconocido') ?></span>
-                                        </td>
-                                        <td>
-                                            <strong style="display: block; color: var(--text-color);"><?= htmlspecialchars($p['nombre_estudiante']) ?></strong>
-                                            <span style="font-size: 0.8rem; color: var(--text-light);">@<?= explode('@', htmlspecialchars($p['correo_estudiante']))[0] ?></span>
-                                        </td>
-                                        <td><?= htmlspecialchars($p['fecha_prestamo']) ?></td>
-                                        <td><?= htmlspecialchars($p['fecha_devolucion']) ?></td>
-                                        <td>
-                                            <span style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; <?= $estado_class ?>">
-                                                <span style="width: 6px; height: 6px; border-radius: 50%; background: <?= $es_activo ? '#4338ca' : '#9ca3af' ?>;"></span>
-                                                <?= $estado_texto ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <?php if ($es_activo): ?>
-                                            <button onclick="abrirModalDevolucionAdmin(<?= $p['id_prestamo'] ?>, '<?= htmlspecialchars($p['titulo'], ENT_QUOTES) ?>', '<?= htmlspecialchars($p['nombre_estudiante'], ENT_QUOTES) ?>')" style="padding: 0.4rem 0.85rem; border-radius: 9999px; border: 1px solid #e5e7eb; background: white; color: var(--text-color); cursor: pointer; font-size: 0.85rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.35rem; transition: all 0.2s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
-                                                ✓ Procesar devolución
-                                            </button>
-                                            <?php else: ?>
-                                            <span style="color: var(--text-light); font-size: 0.85rem;">---</span>
-                                            <?php endif; ?>
-                                        </td>
+                                        ?>
+                                        <tr data-estado="<?= $p['estado'] ?>">
+                                            <td style="color: var(--text-light); font-size: 0.85rem;">
+                                                PRE-<?= str_pad($p['id_prestamo'], 4, '0', STR_PAD_LEFT) ?></td>
+                                            <td>
+                                                <strong
+                                                    style="display: block; color: var(--text-color);"><?= htmlspecialchars($p['titulo']) ?></strong>
+                                                <span
+                                                    style="font-size: 0.8rem; color: var(--text-light);"><?= htmlspecialchars($p['nombre_autor'] ?? 'Desconocido') ?></span>
+                                            </td>
+                                            <td>
+                                                <strong
+                                                    style="display: block; color: var(--text-color);"><?= htmlspecialchars($p['nombre_estudiante']) ?></strong>
+                                                <span
+                                                    style="font-size: 0.8rem; color: var(--text-light);">@<?= explode('@', htmlspecialchars($p['correo_estudiante']))[0] ?></span>
+                                            </td>
+                                            <td><?= htmlspecialchars($p['fecha_prestamo']) ?></td>
+                                            <td><?= htmlspecialchars($p['fecha_devolucion']) ?></td>
+                                            <td>
+                                                <span
+                                                    style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; <?= $estado_class ?>">
+                                                    <span
+                                                        style="width: 6px; height: 6px; border-radius: 50%; background: <?= $es_activo ? '#4338ca' : '#9ca3af' ?>;"></span>
+                                                    <?= $estado_texto ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <?php if ($es_activo): ?>
+                                                    <button
+                                                        onclick="abrirModalDevolucionAdmin(<?= $p['id_prestamo'] ?>, '<?= htmlspecialchars($p['titulo'], ENT_QUOTES) ?>', '<?= htmlspecialchars($p['nombre_estudiante'], ENT_QUOTES) ?>')"
+                                                        style="padding: 0.4rem 0.85rem; border-radius: 9999px; border: 1px solid #e5e7eb; background: white; color: var(--text-color); cursor: pointer; font-size: 0.85rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.35rem; transition: all 0.2s;"
+                                                        onmouseover="this.style.background='#f9fafb'"
+                                                        onmouseout="this.style.background='white'">
+                                                        ✓ Procesar devolución
+                                                    </button>
+                                                <?php else: ?>
+                                                    <span style="color: var(--text-light); font-size: 0.85rem;">---</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">No
+                                            hay préstamos registrados.</td>
                                     </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">No hay préstamos registrados.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-<?php elseif ($seccion === 'calendario'): ?>
-            <header class="top-header" style="margin-bottom: 1.5rem;">
-                <div>
-                    <h1 style="font-family: 'Playfair Display', serif; font-size: 2.2rem; color: #111827; margin-bottom: 0.25rem;">Calendario</h1>
-                    <span id="cal-resumen" style="color: var(--text-light); font-size: 0.95rem;">Cargando...</span>
-                </div>
-                <button onclick="hoyCalendario()" style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; font-weight: 500;">
-                    Hoy
-                </button>
-            </header>
-
-            <div style="display: flex; gap: 1rem; align-items: flex-start; padding: 0 3rem 2rem 3rem;">
-                <!-- Columna Izquierda: Calendario -->
-                <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
-                    <!-- Controles del Mes -->
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-                        <div style="display: flex; align-items: baseline; gap: 1rem;">
-                            <h2 id="mes-anio-texto" style="font-family: 'Playfair Display', serif; font-size: 1.8rem; color: #111827;"></h2>
-                            <span id="eventos-mes-texto" style="color: var(--text-light); font-size: 0.9rem;"></span>
-                        </div>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <button onclick="cambiarMes(-1)" style="width: 32px; height: 32px; border-radius: 0.25rem; border: none; background: #f3f4f6; cursor: pointer;">&lt;</button>
-                            <button onclick="cambiarMes(1)" style="width: 32px; height: 32px; border-radius: 0.25rem; border: none; background: #f3f4f6; cursor: pointer;">&gt;</button>
-                        </div>
+            <?php elseif ($seccion === 'calendario'): ?>
+                <header class="top-header" style="margin-bottom: 1.5rem;">
+                    <div>
+                        <h1
+                            style="font-family: 'Playfair Display', serif; font-size: 2.2rem; color: #111827; margin-bottom: 0.25rem;">
+                            Calendario</h1>
+                        <span id="cal-resumen" style="color: var(--text-light); font-size: 0.95rem;">Cargando...</span>
                     </div>
 
-                    <!-- Días de la semana -->
-                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.75rem; margin-bottom: 0.5rem; padding: 0 0.5rem;">
-                        <div style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">L</div>
-                        <div style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">M</div>
-                        <div style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">M</div>
-                        <div style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">J</div>
-                        <div style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">V</div>
-                        <div style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">S</div>
-                        <div style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">D</div>
+                    <!-- Leyenda de Estados Horizontal Compacta -->
+                    <div
+                        style="display: flex; gap: 0.6rem; align-items: center; background: rgba(255,255,255,0.7); padding: 0.4rem 0.8rem; border-radius: 0.75rem; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 1px 3px rgba(0,0,0,0.02); font-size: 0.8rem; margin: 0 1.5rem;">
+                        <span style="font-weight: 600; color: var(--text-light); margin-right: 0.25rem;">Estado:</span>
+                        <span
+                            style="background: #fee2e2; color: #991b1b; padding: 0.2rem 0.55rem; border-radius: 9999px; font-weight: 700; border: 1px solid #fecaca; font-size: 0.75rem; display: flex; align-items: center; gap: 0.25rem;">
+                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #991b1b;"></span> Vencido
+                        </span>
+                        <span
+                            style="background: #fef3c7; color: #92400e; padding: 0.2rem 0.55rem; border-radius: 9999px; font-weight: 700; border: 1px solid #fcd34d; font-size: 0.75rem; display: flex; align-items: center; gap: 0.25rem;">
+                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #92400e;"></span> Hoy
+                        </span>
+                        <span
+                            style="background: #dcfce3; color: #166534; padding: 0.2rem 0.55rem; border-radius: 9999px; font-weight: 700; border: 1px solid #bbf7d0; font-size: 0.75rem; display: flex; align-items: center; gap: 0.25rem;">
+                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #166534;"></span> Próximo
+                        </span>
+                        <span
+                            style="background: #e0e7ff; color: #3730a3; padding: 0.2rem 0.55rem; border-radius: 9999px; font-weight: 700; border: 1px solid #c7d2fe; font-size: 0.75rem; display: flex; align-items: center; gap: 0.25rem;">
+                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #3730a3;"></span> Activo
+                        </span>
                     </div>
-                    
-                    <!-- Cuadrícula de días -->
-                    <div id="grid-calendario" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.75rem; padding: 0.5rem;">
-                        <!-- Días inyectados por JS -->
+
+                    <button onclick="hoyCalendario()"
+                        style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; font-weight: 500;">
+                        Hoy
+                    </button>
+                </header>
+
+                <div style="display: flex; gap: 1rem; align-items: flex-start; padding: 0 3rem 2rem 3rem;">
+                    <!-- Columna Izquierda: Calendario -->
+                    <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+                        <!-- Controles del Mes -->
+                        <div
+                            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: baseline; gap: 1rem;">
+                                <h2 id="mes-anio-texto"
+                                    style="font-family: 'Playfair Display', serif; font-size: 1.8rem; color: #111827;"></h2>
+                                <span id="eventos-mes-texto" style="color: var(--text-light); font-size: 0.9rem;"></span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button onclick="cambiarMes(-1)"
+                                    style="width: 32px; height: 32px; border-radius: 0.25rem; border: none; background: #f3f4f6; cursor: pointer;">&lt;</button>
+                                <button onclick="cambiarMes(1)"
+                                    style="width: 32px; height: 32px; border-radius: 0.25rem; border: none; background: #f3f4f6; cursor: pointer;">&gt;</button>
+                            </div>
+                        </div>
+
+                        <!-- Días de la semana -->
+                        <div
+                            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.75rem; margin-bottom: 0.5rem; padding: 0 0.5rem;">
+                            <div
+                                style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">
+                                L</div>
+                            <div
+                                style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">
+                                M</div>
+                            <div
+                                style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">
+                                M</div>
+                            <div
+                                style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">
+                                J</div>
+                            <div
+                                style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">
+                                V</div>
+                            <div
+                                style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">
+                                S</div>
+                            <div
+                                style="text-align: center; font-size: 0.85rem; color: var(--text-light); font-weight: 600;">
+                                D</div>
+                        </div>
+
+                        <!-- Cuadrícula de días -->
+                        <div id="grid-calendario"
+                            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.75rem; padding: 0.5rem;">
+                            <!-- Días inyectados por JS -->
+                        </div>
                     </div>
                 </div>
-            </div>
-<?php endif; ?>
+            <?php elseif ($seccion === 'reportes'): ?>
+                <style>
+                    @media print {
+
+                        /* 1. Ocultar la barra lateral (sidebar) */
+                        .sidebar {
+                            display: none !important;
+                        }
+
+                        /* 2. Quitar el fondo, bordes, sombras y overlays del layout */
+                        body.admin-body {
+                            background: white !important;
+                            padding: 0 !important;
+                            min-height: auto !important;
+                        }
+
+                        body.admin-body::before {
+                            display: none !important;
+                        }
+
+                        .admin-layout {
+                            display: block !important;
+                            background: white !important;
+                            border: none !important;
+                            border-radius: 0 !important;
+                            box-shadow: none !important;
+                            width: 100% !important;
+                            height: auto !important;
+                            max-width: 100% !important;
+                            overflow: visible !important;
+                        }
+
+                        /* 3. Hacer que el contenido principal ocupe el 100% del ancho sin restricciones */
+                        .main-content {
+                            width: 100% !important;
+                            height: auto !important;
+                            overflow: visible !important;
+                            padding: 0 !important;
+                        }
+
+                        /* 4. Quitar scrolls y permitir que el cuerpo de reportes fluya verticalmente completo */
+                        .content-body {
+                            overflow: visible !important;
+                            height: auto !important;
+                            padding: 0 !important;
+                            display: flex !important;
+                            flex-direction: column !important;
+                            gap: 2rem !important;
+                        }
+
+                        /* 5. Cabecera limpia sin botón de impresión */
+                        .top-header {
+                            background: transparent !important;
+                            border-bottom: 2px solid #111827 !important;
+                            padding: 1rem 0 !important;
+                            margin-bottom: 2rem !important;
+                        }
+
+                        .top-header button {
+                            display: none !important;
+                        }
+
+                        /* 6. Evitar que se dividan o corten los gráficos y paneles en mitad de una página */
+                        .content-body>div {
+                            page-break-inside: avoid !important;
+                            break-inside: avoid !important;
+                        }
+                    }
+                </style>
+                <!-- SECCIÓN DE REPORTES Y ESTADÍSTICAS -->
+                <header class="top-header" style="margin-bottom: 1.5rem; flex-shrink: 0;">
+                    <div>
+                        <h1
+                            style="font-family: 'Playfair Display', serif; font-size: 2.2rem; color: #111827; margin-bottom: 0.25rem;">
+                            Reportes y Estadísticas</h1>
+                        <span style="color: var(--text-light); font-size: 0.95rem;">Análisis global del rendimiento de la
+                            biblioteca y flujo de préstamos.</span>
+                    </div>
+                    <button onclick="window.print()"
+                        style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 0.35rem; transition: all 0.2s;"
+                        onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                        🖨️ Imprimir Tablero
+                    </button>
+                </header>
+
+                <div class="content-body"
+                    style="overflow-y: auto; display: flex; flex-direction: column; gap: 1.5rem; padding: 0 3rem 2rem 3rem;">
+
+                    <!-- Fila de Metricas Clave (KPIs) -->
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;">
+                        <!-- KPI 1 -->
+                        <div
+                            style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 1rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02); backdrop-filter: blur(10px);">
+                            <div>
+                                <span
+                                    style="font-size: 0.8rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Títulos
+                                    de Libros</span>
+                                <h2 style="font-size: 2rem; color: #111827; font-weight: 800; margin-top: 0.25rem;">
+                                    <?= $kpis['total_titulos'] ?>
+                                </h2>
+                            </div>
+                            <span style="font-size: 2.2rem; opacity: 0.85;"></span>
+                        </div>
+                        <!-- KPI 2 -->
+                        <div
+                            style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 1rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02); backdrop-filter: blur(10px);">
+                            <div>
+                                <span
+                                    style="font-size: 0.8rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Ejemplares
+                                    Totales</span>
+                                <h2 style="font-size: 2rem; color: #111827; font-weight: 800; margin-top: 0.25rem;">
+                                    <?= $kpis['stock_total'] ?>
+                                </h2>
+                            </div>
+                            <span style="font-size: 2.2rem; opacity: 0.85;"></span>
+                        </div>
+                        <!-- KPI 3 -->
+                        <div
+                            style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 1rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02); backdrop-filter: blur(10px);">
+                            <div>
+                                <span
+                                    style="font-size: 0.8rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Préstamos
+                                    Activos</span>
+                                <h2 style="font-size: 2rem; color: #2563eb; font-weight: 800; margin-top: 0.25rem;">
+                                    <?= $kpis['prestamos_activos'] ?>
+                                </h2>
+                            </div>
+                            <span style="font-size: 2.2rem; opacity: 0.85;"></span>
+                        </div>
+                        <!-- KPI 4 -->
+                        <div
+                            style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 1rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02); backdrop-filter: blur(10px);">
+                            <div>
+                                <span
+                                    style="font-size: 0.8rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Devoluciones
+                                    Atrasadas</span>
+                                <h2 style="font-size: 2rem; color: #dc2626; font-weight: 800; margin-top: 0.25rem;">
+                                    <?= $kpis['prestamos_atrasados'] ?>
+                                </h2>
+                            </div>
+                            <span style="font-size: 2.2rem; opacity: 0.85;"></span>
+                        </div>
+                    </div>
+
+                    <!-- Fila de Gráficos Nivel 1 -->
+                    <div style="display: grid; grid-template-columns: 1.6fr 1.2fr; gap: 1.25rem;">
+                        <!-- Chart 1: Libros más Solicitados -->
+                        <div
+                            style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); padding: 1.5rem; border-radius: 1.25rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03); backdrop-filter: blur(15px); height: 350px; display: flex; flex-direction: column;">
+                            <h3
+                                style="font-family: 'Playfair Display', serif; font-size: 1.2rem; color: #111827; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.5rem;">
+                                <span>🔥</span> Top 5 Libros Más Solicitados
+                            </h3>
+                            <div style="flex: 1; position: relative;">
+                                <canvas id="chartTopLibros"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 2: Estado de Préstamos -->
+                        <div
+                            style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); padding: 1.5rem; border-radius: 1.25rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03); backdrop-filter: blur(15px); height: 350px; display: flex; flex-direction: column;">
+                            <h3
+                                style="font-family: 'Playfair Display', serif; font-size: 1.2rem; color: #111827; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.5rem;">
+                                <span>📊</span> Distribución de Préstamos
+                            </h3>
+                            <div
+                                style="flex: 1; position: relative; display: flex; justify-content: center; align-items: center; padding: 0.5rem;">
+                                <canvas id="chartEstados"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fila de Gráficos Nivel 2 + Listados de Alerta -->
+                    <div style="display: grid; grid-template-columns: 1.2fr 1.6fr; gap: 1.25rem;">
+                        <!-- Chart 3: Préstamos por Materia -->
+                        <div
+                            style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); padding: 1.5rem; border-radius: 1.25rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03); backdrop-filter: blur(15px); height: 380px; display: flex; flex-direction: column;">
+                            <h3
+                                style="font-family: 'Playfair Display', serif; font-size: 1.2rem; color: #111827; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.5rem;">
+                                <span>🏷️</span> Reservas por Materia
+                            </h3>
+                            <div
+                                style="flex: 1; position: relative; display: flex; justify-content: center; align-items: center; padding: 0.5rem;">
+                                <canvas id="chartCategorias"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Panel Auditoría Movimientos y Listas Críticas -->
+                        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+
+                            <!-- Panel de Sub-Grillas Críticas -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+                                <!-- Panel Stock Bajo -->
+                                <div
+                                    style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); padding: 1.25rem; border-radius: 1.25rem; box-shadow: 0 4px 15px rgba(0,0,0,0.02); height: 185px; display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(10px);">
+                                    <h4
+                                        style="color: #b45309; font-weight: 700; font-size: 0.95rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.35rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.35rem;">
+                                        ⚠️ Stock Crítico / Bajo (<?= count($librosAlerta) ?>)
+                                    </h4>
+                                    <div style="flex: 1; overflow-y: auto; font-size: 0.85rem;">
+                                        <?php if (!empty($librosAlerta)): ?>
+                                            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                                                <thead>
+                                                    <tr
+                                                        style="color: var(--text-light); font-weight: 600; border-bottom: 1px solid #f3f4f6;">
+                                                        <th style="padding-bottom: 0.4rem;">Libro</th>
+                                                        <th style="padding-bottom: 0.4rem; text-align: center;">Stock</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php foreach (array_slice($librosAlerta, 0, 5) as $la): ?>
+                                                        <tr style="border-bottom: 1px solid #f3f4f6;">
+                                                            <td style="padding: 0.4rem 0; font-weight: 600; color: var(--text-color); max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                                                                title="<?= htmlspecialchars($la['titulo']) ?>">
+                                                                <?= htmlspecialchars($la['titulo']) ?>
+                                                            </td>
+                                                            <td
+                                                                style="padding: 0.4rem 0; text-align: center; color: #ef4444; font-weight: bold;">
+                                                                <?= $la['cantidad'] ?> <span
+                                                                    style="font-weight:normal; color: var(--text-light); font-size:0.75rem;">(mín:
+                                                                    <?= $la['stock_minimo'] ?>)</span>
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        <?php else: ?>
+                                            <div
+                                                style="color: var(--primary); font-weight: 600; text-align: center; padding-top: 2rem;">
+                                                🎉 Stock óptimo en todo el catálogo.</div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+
+                                <!-- Panel Alumnos Morosos -->
+                                <div
+                                    style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); padding: 1.25rem; border-radius: 1.25rem; box-shadow: 0 4px 15px rgba(0,0,0,0.02); height: 185px; display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(10px);">
+                                    <h4
+                                        style="color: #dc2626; font-weight: 700; font-size: 0.95rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.35rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.35rem;">
+                                        🛑 Alumnos con Retraso (<?= count($alumnosDeudores) ?>)
+                                    </h4>
+                                    <div style="flex: 1; overflow-y: auto; font-size: 0.85rem;">
+                                        <?php if (!empty($alumnosDeudores)): ?>
+                                            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                                                <thead>
+                                                    <tr
+                                                        style="color: var(--text-light); font-weight: 600; border-bottom: 1px solid #f3f4f6;">
+                                                        <th style="padding-bottom: 0.4rem;">Alumno</th>
+                                                        <th style="padding-bottom: 0.4rem; text-align: center;">Retraso</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php foreach (array_slice($alumnosDeudores, 0, 5) as $ad): ?>
+                                                        <tr style="border-bottom: 1px solid #f3f4f6;">
+                                                            <td style="padding: 0.4rem 0; font-weight: 600; color: var(--text-color); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                                                                title="<?= htmlspecialchars($ad['nombre']) ?> (<?= htmlspecialchars($ad['correo']) ?>)">
+                                                                <?= htmlspecialchars($ad['nombre']) ?>
+                                                            </td>
+                                                            <td
+                                                                style="padding: 0.4rem 0; text-align: center; color: #ef4444; font-weight: bold;">
+                                                                <?= $ad['dias_retraso'] ?> días
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        <?php else: ?>
+                                            <div
+                                                style="color: #065f46; font-weight: 600; text-align: center; padding-top: 2rem;">
+                                                ✅ No hay alumnos con retraso.</div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Panel Auditoría Movimientos Recientes -->
+                            <div
+                                style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); padding: 1.25rem; border-radius: 1.25rem; box-shadow: 0 4px 15px rgba(0,0,0,0.02); height: 180px; display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(10px);">
+                                <h4
+                                    style="color: var(--primary); font-weight: 700; font-size: 0.95rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.35rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.35rem;">
+                                    📋 Bitácora de Movimientos Recientes
+                                </h4>
+                                <div style="flex: 1; overflow-y: auto; font-size: 0.85rem;">
+                                    <?php if (!empty($logMovimientos)): ?>
+                                        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                                            <thead>
+                                                <tr
+                                                    style="color: var(--text-light); font-weight: 600; border-bottom: 1px solid #f3f4f6;">
+                                                    <th style="padding-bottom: 0.4rem;">Acción</th>
+                                                    <th style="padding-bottom: 0.4rem;">Libro</th>
+                                                    <th style="padding-bottom: 0.4rem;">Registrado Por</th>
+                                                    <th style="padding-bottom: 0.4rem; text-align: right;">Fecha</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($logMovimientos as $m): ?>
+                                                    <?php
+                                                    $tipo_style = $m['tipo'] === 'prestamo' ? 'background: rgba(59, 130, 246, 0.15); color: #1e40af; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: bold; border: 1px solid rgba(59, 130, 246, 0.3); font-size:0.7rem;' : 'background: rgba(16, 185, 129, 0.15); color: #065f46; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: bold; border: 1px solid rgba(16, 185, 129, 0.3); font-size:0.7rem;';
+                                                    $tipo_text = $m['tipo'] === 'prestamo' ? 'PRÉSTAMO' : 'DEVOLUCIÓN';
+                                                    ?>
+                                                    <tr style="border-bottom: 1px solid #f3f4f6;">
+                                                        <td style="padding: 0.4rem 0;"><span
+                                                                style="<?= $tipo_style ?>"><?= $tipo_text ?></span></td>
+                                                        <td style="padding: 0.4rem 0; font-weight: 600; color: var(--text-color); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                                                            title="<?= htmlspecialchars($m['titulo']) ?>">
+                                                            <?= htmlspecialchars($m['titulo']) ?>
+                                                        </td>
+                                                        <td style="padding: 0.4rem 0; color: var(--text-light);">
+                                                            <?= htmlspecialchars($m['usuario_nombre'] ?? 'Administrador') ?>
+                                                        </td>
+                                                        <td
+                                                            style="padding: 0.4rem 0; text-align: right; color: var(--text-light); font-size: 0.8rem;">
+                                                            <?= date('d/m/Y H:i', strtotime($m['fecha'])) ?>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    <?php else: ?>
+                                        <div style="color: var(--text-light); text-align: center; padding-top: 2rem;">No se
+                                            registran movimientos en la bitácora.</div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- CDN DE CHART.JS -->
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+                <?php
+                // Preparación de datos PHP a JSON
+                $topLibrosLabels = array_column($topLibros, 'titulo');
+                $topLibrosData = array_column($topLibros, 'total_prestamos');
+
+                $prestamosMateriaLabels = array_column($prestamosMateria, 'materia');
+                $prestamosMateriaData = array_column($prestamosMateria, 'total');
+
+                $estadosLabels = ['Devueltos', 'Activos a Tiempo', 'Vencidos (Atraso)'];
+                $estadosData = [
+                    $distribucionEstados['devuelto'],
+                    $distribucionEstados['activo_a_tiempo'],
+                    $distribucionEstados['retrasado']
+                ];
+                ?>
+
+                <script>
+                    document.addEventListener('DOMContentLoaded', () => {
+                        // --- GRÁFICO 1: TOP LIBROS MÁS SOLICITADOS ---
+                        const ctxTop = document.getElementById('chartTopLibros');
+                        if (ctxTop) {
+                            new Chart(ctxTop.getContext('2d'), {
+                                type: 'bar',
+                                data: {
+                                    labels: <?= json_encode($topLibrosLabels) ?>,
+                                    datasets: [{
+                                        label: 'Préstamos Totales',
+                                        data: <?= json_encode($topLibrosData) ?>,
+                                        backgroundColor: 'rgba(45, 106, 79, 0.7)',
+                                        borderColor: '#2d6a4f',
+                                        borderWidth: 1.5,
+                                        borderRadius: 6
+                                    }]
+                                },
+                                options: {
+                                    indexAxis: 'y',
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                        legend: { display: false }
+                                    },
+                                    scales: {
+                                        x: {
+                                            beginAtZero: true,
+                                            grid: { color: 'rgba(0,0,0,0.03)' },
+                                            ticks: { precision: 0 }
+                                        },
+                                        y: {
+                                            grid: { display: false },
+                                            ticks: {
+                                                callback: function (value, index, values) {
+                                                    const label = this.getLabelForValue(value);
+                                                    return label.length > 22 ? label.substring(0, 20) + '...' : label;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+
+                        // --- GRÁFICO 2: DISTRIBUCIÓN DE ESTADOS ---
+                        const ctxEst = document.getElementById('chartEstados');
+                        if (ctxEst) {
+                            new Chart(ctxEst.getContext('2d'), {
+                                type: 'doughnut',
+                                data: {
+                                    labels: <?= json_encode($estadosLabels) ?>,
+                                    datasets: [{
+                                        data: <?= json_encode($estadosData) ?>,
+                                        backgroundColor: [
+                                            'rgba(16, 185, 129, 0.75)', // Devueltos
+                                            'rgba(37, 99, 235, 0.75)',  // Activos a tiempo
+                                            'rgba(220, 38, 38, 0.75)'   // Vencidos
+                                        ],
+                                        borderColor: '#ffffff',
+                                        borderWidth: 2
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                        legend: {
+                                            position: 'bottom',
+                                            labels: { boxWidth: 12, font: { size: 11 } }
+                                        }
+                                    },
+                                    cutout: '65%'
+                                }
+                            });
+                        }
+
+                        // --- GRÁFICO 3: PRÉSTAMOS POR MATERIA ---
+                        const ctxCat = document.getElementById('chartCategorias');
+                        if (ctxCat) {
+                            new Chart(ctxCat.getContext('2d'), {
+                                type: 'polarArea',
+                                data: {
+                                    labels: <?= json_encode($prestamosMateriaLabels) ?>,
+                                    datasets: [{
+                                        data: <?= json_encode($prestamosMateriaData) ?>,
+                                        backgroundColor: [
+                                            'rgba(45, 106, 79, 0.65)',
+                                            'rgba(37, 99, 235, 0.65)',
+                                            'rgba(217, 119, 6, 0.65)',
+                                            'rgba(124, 58, 237, 0.65)',
+                                            'rgba(219, 39, 119, 0.65)',
+                                            'rgba(75, 85, 99, 0.65)'
+                                        ],
+                                        borderColor: '#ffffff',
+                                        borderWidth: 1.5
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                        legend: {
+                                            position: 'bottom',
+                                            labels: { boxWidth: 10, font: { size: 10 } }
+                                        }
+                                    },
+                                    scales: {
+                                        r: {
+                                            ticks: { display: false },
+                                            grid: { color: 'rgba(0,0,0,0.03)' }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    });
+                </script>
+            <?php endif; ?>
         </main>
     </div>
 
@@ -406,7 +993,9 @@ if ($seccion === 'inventario') {
                 <button type="button" class="btn-close" onclick="cerrarModalDetalleDia()">×</button>
             </div>
             <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
-                <span id="modal-panel-eventos-count" style="color: var(--text-light); font-size: 0.9rem; display: block; margin-bottom: 1.5rem;">0 eventos</span>
+                <span id="modal-panel-eventos-count"
+                    style="color: var(--text-light); font-size: 0.9rem; display: block; margin-bottom: 1.5rem;">0
+                    eventos</span>
                 <div id="modal-panel-lista-eventos" style="display: flex; flex-direction: column; gap: 1rem;">
                     <!-- Eventos inyectados por JS -->
                 </div>
@@ -548,7 +1137,7 @@ if ($seccion === 'inventario') {
                 <div class="modal-body">
                     <input type="hidden" name="accion" id="usr_accion" value="crear">
                     <input type="hidden" name="id" id="usr_id" value="">
-                    
+
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Nombre de Usuario</label>
@@ -584,7 +1173,8 @@ if ($seccion === 'inventario') {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" onclick="cerrarModalUsuario()">Cancelar</button>
-                    <button type="submit" class="btn-primary" style="width: auto; margin-top: 0;">Guardar Usuario</button>
+                    <button type="submit" class="btn-primary" style="width: auto; margin-top: 0;">Guardar
+                        Usuario</button>
                 </div>
             </form>
         </div>
@@ -598,20 +1188,26 @@ if ($seccion === 'inventario') {
             </div>
             <form action="procesar_devolucion_admin.php" method="POST">
                 <div class="modal-body">
-                    <p style="color: var(--text-light); margin-bottom: 1rem; line-height: 1.5;">Vas a registrar la devolución de este libro. El inventario se actualizará automáticamente.</p>
-                    <div style="background: rgba(243, 244, 246, 0.8); padding: 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; margin-bottom: 1rem;">
-                        <span style="display: block; font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; font-weight: 600; margin-bottom: 0.25rem;">Libro</span>
-                        <strong style="display: block; color: var(--text-color); margin-bottom: 0.75rem;" id="txt_dev_titulo"></strong>
-                        
-                        <span style="display: block; font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; font-weight: 600; margin-bottom: 0.25rem;">Estudiante</span>
+                    <p style="color: var(--text-light); margin-bottom: 1rem; line-height: 1.5;">Vas a registrar la
+                        devolución de este libro. El inventario se actualizará automáticamente.</p>
+                    <div
+                        style="background: rgba(243, 244, 246, 0.8); padding: 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; margin-bottom: 1rem;">
+                        <span
+                            style="display: block; font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; font-weight: 600; margin-bottom: 0.25rem;">Libro</span>
+                        <strong style="display: block; color: var(--text-color); margin-bottom: 0.75rem;"
+                            id="txt_dev_titulo"></strong>
+
+                        <span
+                            style="display: block; font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; font-weight: 600; margin-bottom: 0.25rem;">Estudiante</span>
                         <strong style="display: block; color: var(--text-color);" id="txt_dev_estudiante"></strong>
                     </div>
-                    
+
                     <input type="hidden" name="id_prestamo" id="dev_admin_id_prestamo" value="">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" onclick="cerrarModalDevolucionAdmin()">Cancelar</button>
-                    <button type="submit" class="btn-primary" style="background: #4338ca; border-color: #4338ca;">Confirmar Devolución</button>
+                    <button type="submit" class="btn-primary"
+                        style="background: #4338ca; border-color: #4338ca;">Confirmar Devolución</button>
                 </div>
             </form>
         </div>
@@ -621,7 +1217,7 @@ if ($seccion === 'inventario') {
         const prestamosRaw = <?= isset($prestamosActivos) ? json_encode($prestamosActivos) : '[]' ?>;
         const prestamosPorDia = {};
         prestamosRaw.forEach(p => {
-            if(!prestamosPorDia[p.fecha_devolucion]) prestamosPorDia[p.fecha_devolucion] = [];
+            if (!prestamosPorDia[p.fecha_devolucion]) prestamosPorDia[p.fecha_devolucion] = [];
             prestamosPorDia[p.fecha_devolucion].push(p);
         });
 
@@ -629,62 +1225,62 @@ if ($seccion === 'inventario') {
         let fechaActual = new Date();
         let mesActual = fechaActual.getMonth();
         let anioActual = fechaActual.getFullYear();
-        let hoyString = fechaActual.getFullYear() + "-" + String(fechaActual.getMonth()+1).padStart(2, '0') + "-" + String(fechaActual.getDate()).padStart(2, '0');
+        let hoyString = fechaActual.getFullYear() + "-" + String(fechaActual.getMonth() + 1).padStart(2, '0') + "-" + String(fechaActual.getDate()).padStart(2, '0');
 
         function actualizarResumen() {
             let total = prestamosRaw.length;
             let vencidos = 0;
             let proximos = 0;
-            
+
             prestamosRaw.forEach(p => {
                 if (p.fecha_devolucion < hoyString) vencidos++;
                 else {
                     let diffTime = new Date(p.fecha_devolucion) - new Date(hoyString);
                     let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    if(diffDays <= 2) proximos++;
+                    if (diffDays <= 2) proximos++;
                 }
             });
 
-            document.getElementById('cal-resumen').textContent = 
+            document.getElementById('cal-resumen').textContent =
                 `${total} devoluciones programadas • ${vencidos} vencidas • ${proximos} vencen en 2 días o menos`;
         }
 
         function renderCalendario() {
             const grid = document.getElementById('grid-calendario');
-            if(!grid) return;
+            if (!grid) return;
 
             grid.innerHTML = '';
             document.getElementById('mes-anio-texto').textContent = `${meses[mesActual]} ${anioActual}`;
-            
+
             let primerDiaDelMes = new Date(anioActual, mesActual, 1).getDay();
             let indexInicio = primerDiaDelMes === 0 ? 6 : primerDiaDelMes - 1;
-            
+
             let diasEnMes = new Date(anioActual, mesActual + 1, 0).getDate();
             let eventosEnMes = 0;
 
-            for(let i=0; i<indexInicio; i++) {
+            for (let i = 0; i < indexInicio; i++) {
                 grid.innerHTML += `<div style="min-height: 110px; border-radius: 0.75rem;"></div>`;
             }
 
-            for(let d=1; d<=diasEnMes; d++) {
-                let fechaStr = `${anioActual}-${String(mesActual+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            for (let d = 1; d <= diasEnMes; d++) {
+                let fechaStr = `${anioActual}-${String(mesActual + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 let eventos = prestamosPorDia[fechaStr] || [];
                 eventosEnMes += eventos.length;
-                
+
                 let isHoy = (fechaStr === hoyString);
-                
+
                 let eventosHtml = '';
                 eventos.forEach(ev => {
-                    let estadoStyle = "background: #e0e7ff; color: #3730a3;"; 
-                    if(fechaStr < hoyString) {
-                        estadoStyle = "background: #fee2e2; color: #991b1b;"; 
+                    let estadoStyle = "background: #e0e7ff; color: #3730a3;";
+                    if (fechaStr < hoyString) {
+                        estadoStyle = "background: #fee2e2; color: #991b1b;";
                     } else if (fechaStr === hoyString) {
-                        estadoStyle = "background: #fef3c7; color: #92400e;"; 
+                        estadoStyle = "background: #fef3c7; color: #92400e;";
                     } else {
                         let diffTime = new Date(fechaStr) - new Date(hoyString);
                         let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        if(diffDays <= 2) {
-                            estadoStyle = "background: #dcfce3; color: #166534;"; 
+                        if (diffDays <= 2) {
+                            estadoStyle = "background: #dcfce3; color: #166534;";
                         }
                     }
 
@@ -697,7 +1293,7 @@ if ($seccion === 'inventario') {
                 });
 
                 let celdaActivaStyle = isHoy ? "border: 2px solid #059669;" : "border: 1px solid #e5e7eb;";
-                
+
                 grid.innerHTML += `
                     <div onclick="mostrarDetalleDia('${fechaStr}', ${d})" style="background: white; min-height: 110px; padding: 0.75rem; border-radius: 0.75rem; cursor: pointer; position: relative; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.02); ${celdaActivaStyle} transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.05)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 2px rgba(0,0,0,0.02)';">
                         <span style="font-size: 0.95rem; font-weight: 600; color: ${isHoy ? '#059669' : '#374151'}; margin-bottom: 0.5rem;">
@@ -715,7 +1311,7 @@ if ($seccion === 'inventario') {
 
         function cambiarMes(diff) {
             mesActual += diff;
-            if(mesActual > 11) {
+            if (mesActual > 11) {
                 mesActual = 0;
                 anioActual++;
             } else if (mesActual < 0) {
@@ -733,17 +1329,17 @@ if ($seccion === 'inventario') {
 
         function mostrarDetalleDia(fechaStr, dia) {
             const parts = fechaStr.split('-');
-            const dateObj = new Date(parts[0], parts[1]-1, parts[2]);
+            const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
             const diasSemana = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
             const diaSemana = diasSemana[dateObj.getDay()];
-            
+
             document.getElementById('modal-panel-fecha').textContent = `${diaSemana}, ${dia} de ${meses[dateObj.getMonth()]}`;
-            
+
             const eventos = prestamosPorDia[fechaStr] || [];
             document.getElementById('modal-panel-eventos-count').textContent = `${eventos.length} evento${eventos.length !== 1 ? 's' : ''}`;
-            
+
             const lista = document.getElementById('modal-panel-lista-eventos');
-            if(eventos.length === 0) {
+            if (eventos.length === 0) {
                 lista.innerHTML = '<div style="color: var(--text-light); font-size: 0.95rem; background: #f9fafb; padding: 1rem; border-radius: 0.5rem; text-align: center; border: 1px dashed #d1d5db;">☕ Sin devoluciones para este día.</div>';
             } else {
                 let html = '';
@@ -751,7 +1347,7 @@ if ($seccion === 'inventario') {
                     let badgeStyle = "background: #e0e7ff; color: #3730a3;";
                     let badgeText = "Activo";
 
-                    if(fechaStr < hoyString) {
+                    if (fechaStr < hoyString) {
                         badgeStyle = "background: #fee2e2; color: #991b1b;";
                         badgeText = "Urgente";
                     } else if (fechaStr === hoyString) {
@@ -760,7 +1356,7 @@ if ($seccion === 'inventario') {
                     } else {
                         let diffTime = new Date(fechaStr) - new Date(hoyString);
                         let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        if(diffDays <= 2) {
+                        if (diffDays <= 2) {
                             badgeStyle = "background: #dcfce3; color: #166534;";
                             badgeText = "Próximo";
                         }
@@ -776,13 +1372,13 @@ if ($seccion === 'inventario') {
                                 <span style="background: #e5e7eb; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.7rem;">👤</span>
                                 ${ev.nombre_estudiante}
                             </div>
-                            <div style="color: var(--text-light); font-size: 0.8rem; margin-left: 28px;">PRE-${String(ev.id_prestamo).padStart(4,'0')} • Prestado: ${ev.fecha_prestamo}</div>
+                            <div style="color: var(--text-light); font-size: 0.8rem; margin-left: 28px;">PRE-${String(ev.id_prestamo).padStart(4, '0')} • Prestado: ${ev.fecha_prestamo}</div>
                         </div>
                     `;
                 });
                 lista.innerHTML = html;
             }
-            
+
             // Abrir el modal
             document.getElementById('modal-detalle-dia').classList.add('active');
         }
@@ -805,7 +1401,7 @@ if ($seccion === 'inventario') {
             document.getElementById('txt_dev_estudiante').textContent = estudiante;
             document.getElementById('modal-devolucion-admin').classList.add('active');
         }
-        
+
         function cerrarModalDevolucionAdmin() {
             document.getElementById('modal-devolucion-admin').classList.remove('active');
         }
@@ -821,16 +1417,16 @@ if ($seccion === 'inventario') {
             // Para simplificar, buscamos si el estado activo de la píldora.
             let activePill = document.querySelector('.filter-pill.active');
             let estadoFiltro = 'todos';
-            if(activePill && activePill.textContent.includes('Activos')) estadoFiltro = 'activo';
-            if(activePill && activePill.textContent.includes('Devueltos')) estadoFiltro = 'devuelto';
+            if (activePill && activePill.textContent.includes('Activos')) estadoFiltro = 'activo';
+            if (activePill && activePill.textContent.includes('Devueltos')) estadoFiltro = 'devuelto';
 
             for (let i = 0; i < tr.length; i++) {
                 if (tr[i].getElementsByTagName("td").length === 1) continue;
-                
+
                 let filaEstado = tr[i].getAttribute('data-estado');
                 let td1 = tr[i].getElementsByTagName("td")[1]; // Libro
                 let td2 = tr[i].getElementsByTagName("td")[2]; // Estudiante
-                
+
                 let textMatch = false;
                 if (td1 || td2) {
                     let txtValue1 = td1.textContent || td1.innerText;
@@ -839,7 +1435,7 @@ if ($seccion === 'inventario') {
                         textMatch = true;
                     }
                 }
-                
+
                 if (textMatch && (estadoFiltro === 'todos' || filaEstado === estadoFiltro)) {
                     tr[i].style.display = "";
                 } else {
@@ -956,18 +1552,18 @@ if ($seccion === 'inventario') {
         }
 
         // --- FUNCIONES DEL MÓDULO DE USUARIOS ---
-        
+
         function abrirModalUsuarioCrear() {
             document.getElementById('usr_modal_title').textContent = 'Registrar Nuevo Usuario';
             document.getElementById('usr_accion').value = 'crear';
             document.getElementById('usr_id').value = '';
-            
+
             document.getElementById('usr_usuario').value = '';
             document.getElementById('usr_nombre').value = '';
             document.getElementById('usr_correo').value = '';
             document.getElementById('usr_rol').value = 'estudiante';
             document.getElementById('usr_estado').value = '1';
-            
+
             // Mostrar y requerir clave para nuevo usuario
             document.getElementById('usr_clave_container').style.display = 'block';
             document.getElementById('usr_clave').required = true;
@@ -980,13 +1576,13 @@ if ($seccion === 'inventario') {
             document.getElementById('usr_modal_title').textContent = 'Editar Usuario';
             document.getElementById('usr_accion').value = 'editar';
             document.getElementById('usr_id').value = usr.id;
-            
+
             document.getElementById('usr_usuario').value = usr.usuario;
             document.getElementById('usr_nombre').value = usr.nombre;
             document.getElementById('usr_correo').value = usr.correo;
             document.getElementById('usr_rol').value = usr.rol;
             document.getElementById('usr_estado').value = usr.estado;
-            
+
             // Ocultar campo de contraseña (no se edita aquí)
             document.getElementById('usr_clave_container').style.display = 'none';
             document.getElementById('usr_clave').required = false;
@@ -1007,7 +1603,7 @@ if ($seccion === 'inventario') {
 
             for (let i = 0; i < tr.length; i++) {
                 if (tr[i].getElementsByTagName("td").length === 1) continue;
-                
+
                 // Buscar en Nombre Real o Usuario (Columnas 1 y 2 indexadas form HTML)
                 let td1 = tr[i].getElementsByTagName("td")[1]; // Usuario
                 let td2 = tr[i].getElementsByTagName("td")[2]; // Nombre Real
@@ -1019,7 +1615,7 @@ if ($seccion === 'inventario') {
                     } else {
                         tr[i].style.display = "none";
                     }
-                }       
+                }
             }
         }
 
@@ -1038,38 +1634,38 @@ if ($seccion === 'inventario') {
             let table = document.getElementById(tableId);
             let tbody = table.querySelector("tbody");
             let rows = Array.from(tbody.querySelectorAll("tr"));
-            
+
             // Si la tabla está vacía (tiene la fila de 'no hay datos'), no hacemos nada
             if (rows.length === 0 || rows[0].getElementsByTagName("td").length === 1) return;
 
             let asc = table.getAttribute("data-sort-dir") === "asc";
             let currentSortCol = table.getAttribute("data-sort-col");
-            
+
             if (currentSortCol == n) {
                 asc = !asc; // Alternar dirección si es la misma columna
             } else {
                 asc = true; // Por defecto ascendente para nueva columna
             }
-            
+
             table.setAttribute("data-sort-dir", asc ? "asc" : "desc");
             table.setAttribute("data-sort-col", n);
 
-            rows.sort(function(a, b) {
+            rows.sort(function (a, b) {
                 let x = a.getElementsByTagName("td")[n];
                 let y = b.getElementsByTagName("td")[n];
-                
+
                 if (!x || !y) return 0;
-                
+
                 let valX = x.textContent.trim().toLowerCase();
                 let valY = y.textContent.trim().toLowerCase();
-                
+
                 let numX = parseFloat(valX);
                 let numY = parseFloat(valY);
-                
-                if(!isNaN(numX) && !isNaN(numY) && valX == numX && valY == numY) {
+
+                if (!isNaN(numX) && !isNaN(numY) && valX == numX && valY == numY) {
                     return asc ? numX - numY : numY - numX;
                 }
-                
+
                 if (valX < valY) return asc ? -1 : 1;
                 if (valX > valY) return asc ? 1 : -1;
                 return 0;
@@ -1077,7 +1673,7 @@ if ($seccion === 'inventario') {
 
             // Actualizar iconos de las cabeceras
             let headers = table.querySelectorAll("thead th");
-            headers.forEach(function(th, index) {
+            headers.forEach(function (th, index) {
                 let iconSpan = th.querySelector('.sort-icon');
                 if (iconSpan) {
                     if (index === n) {
@@ -1089,7 +1685,7 @@ if ($seccion === 'inventario') {
             });
 
             // Re-añadir las filas en el nuevo orden
-            rows.forEach(function(row) {
+            rows.forEach(function (row) {
                 tbody.appendChild(row);
             });
         }

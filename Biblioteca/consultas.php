@@ -5,7 +5,8 @@ require_once 'conexion.php';
 /**
  * Obtiene un usuario válido buscando por nombre de usuario o correo.
  */
-function obtener_usuario_por_login($con, $login) {
+function obtener_usuario_por_login($con, $login)
+{
     try {
         $stmt = $con->prepare("SELECT id, usuario, correo, nombre, clave, rol, estado FROM usuarios WHERE usuario = :login OR correo = :login LIMIT 1");
         $stmt->bindParam(':login', $login);
@@ -19,7 +20,8 @@ function obtener_usuario_por_login($con, $login) {
 /**
  * Obtiene el inventario completo de libros con los nombres de autor y materia.
  */
-function obtener_inventario_libros($con) {
+function obtener_inventario_libros($con)
+{
     try {
         $query = "SELECT l.*, a.nombre as autor_nombre, m.nombre as categoria_nombre 
                   FROM libros l 
@@ -36,7 +38,8 @@ function obtener_inventario_libros($con) {
 /**
  * Obtiene toda la información de un libro usando su ID.
  */
-function obtener_libro_por_id($con, $id) {
+function obtener_libro_por_id($con, $id)
+{
     try {
         $stmt = $con->prepare("SELECT * FROM libros WHERE id = :id LIMIT 1");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
@@ -50,7 +53,8 @@ function obtener_libro_por_id($con, $id) {
 /**
  * Elimina un libro del inventario.
  */
-function eliminar_libro($con, $id) {
+function eliminar_libro($con, $id)
+{
     try {
         $stmt = $con->prepare("DELETE FROM libros WHERE id = :id");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
@@ -63,7 +67,8 @@ function eliminar_libro($con, $id) {
 /**
  * Actualiza un libro en el inventario.
  */
-function actualizar_libro($con, $id, $titulo, $id_autor, $id_editorial, $id_materia, $cantidad, $stock_minimo, $num_pag, $anio_edicion) {
+function actualizar_libro($con, $id, $titulo, $id_autor, $id_editorial, $id_materia, $cantidad, $stock_minimo, $num_pag, $anio_edicion)
+{
     try {
         $sql = "UPDATE libros SET 
                 titulo = :titulo, 
@@ -75,7 +80,7 @@ function actualizar_libro($con, $id, $titulo, $id_autor, $id_editorial, $id_mate
                 num_pag = :num_pag, 
                 anio_edicion = :anio_edicion 
                 WHERE id = :id";
-                
+
         $stmt = $con->prepare($sql);
         $stmt->bindParam(':titulo', $titulo);
         // Si el valor es vacío se puede registrar como NULL si la BD lo permite, pero asumimos texto o enteros válidos
@@ -87,7 +92,7 @@ function actualizar_libro($con, $id, $titulo, $id_autor, $id_editorial, $id_mate
         $stmt->bindParam(':num_pag', $num_pag, PDO::PARAM_INT);
         $stmt->bindParam(':anio_edicion', $anio_edicion, PDO::PARAM_INT);
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-        
+
         return $stmt->execute();
     } catch (PDOException $e) {
         throw new Exception("Error al actualizar libro: " . $e->getMessage());
@@ -98,17 +103,20 @@ function actualizar_libro($con, $id, $titulo, $id_autor, $id_editorial, $id_mate
 // FUNCIONES PARA LOS DESPLEGABLES (DROPDOWNS)
 // ==========================================
 
-function obtener_autores($con) {
+function obtener_autores($con)
+{
     $stmt = $con->query("SELECT id, nombre FROM autor ORDER BY nombre ASC");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function obtener_materias($con) {
+function obtener_materias($con)
+{
     $stmt = $con->query("SELECT id, nombre FROM materias ORDER BY nombre ASC");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function obtener_editoriales($con) {
+function obtener_editoriales($con)
+{
     $stmt = $con->query("SELECT id, nombre FROM editorial ORDER BY nombre ASC");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -120,7 +128,8 @@ function obtener_editoriales($con) {
 /**
  * Inserta un nuevo autor y devuelve su ID generado.
  */
-function insertar_autor($con, $nombre) {
+function insertar_autor($con, $nombre)
+{
     $stmt = $con->prepare("INSERT INTO autor (nombre) VALUES (:nombre)");
     $stmt->bindParam(':nombre', $nombre);
     $stmt->execute();
@@ -130,7 +139,8 @@ function insertar_autor($con, $nombre) {
 /**
  * Inserta una nueva materia y devuelve su ID generado.
  */
-function insertar_materia($con, $nombre) {
+function insertar_materia($con, $nombre)
+{
     $stmt = $con->prepare("INSERT INTO materias (nombre) VALUES (:nombre)");
     $stmt->bindParam(':nombre', $nombre);
     $stmt->execute();
@@ -140,7 +150,8 @@ function insertar_materia($con, $nombre) {
 /**
  * Inserta una nueva editorial y devuelve su ID generado.
  */
-function insertar_editorial($con, $nombre) {
+function insertar_editorial($con, $nombre)
+{
     $stmt = $con->prepare("INSERT INTO editorial (nombre) VALUES (:nombre)");
     $stmt->bindParam(':nombre', $nombre);
     $stmt->execute();
@@ -150,11 +161,12 @@ function insertar_editorial($con, $nombre) {
 /**
  * Agrega un nuevo libro al inventario.
  */
-function agregar_libro($con, $titulo, $id_autor, $id_editorial, $id_materia, $cantidad, $stock_minimo, $num_pag, $anio_edicion) {
+function agregar_libro($con, $titulo, $id_autor, $id_editorial, $id_materia, $cantidad, $stock_minimo, $num_pag, $anio_edicion)
+{
     try {
         $sql = "INSERT INTO libros (titulo, id_autor, id_editorial, id_materia, cantidad, stock_minimo, num_pag, anio_edicion, fecha_registro) 
                 VALUES (:titulo, :id_autor, :id_editorial, :id_materia, :cantidad, :stock_minimo, :num_pag, :anio_edicion, NOW())";
-                
+
         $stmt = $con->prepare($sql);
         $stmt->bindParam(':titulo', $titulo);
         $stmt->bindParam(':id_autor', $id_autor, PDO::PARAM_INT);
@@ -164,7 +176,7 @@ function agregar_libro($con, $titulo, $id_autor, $id_editorial, $id_materia, $ca
         $stmt->bindParam(':stock_minimo', $stock_minimo, PDO::PARAM_INT);
         $stmt->bindParam(':num_pag', $num_pag, PDO::PARAM_INT);
         $stmt->bindParam(':anio_edicion', $anio_edicion, PDO::PARAM_INT);
-        
+
         return $stmt->execute();
     } catch (PDOException $e) {
         throw new Exception("Error al agregar libro: " . $e->getMessage());
@@ -175,7 +187,8 @@ function agregar_libro($con, $titulo, $id_autor, $id_editorial, $id_materia, $ca
 // FUNCIONES DEL MÓDULO DE USUARIOS
 // ==========================================
 
-function obtener_todos_usuarios($con) {
+function obtener_todos_usuarios($con)
+{
     try {
         $stmt = $con->query("SELECT id, usuario, nombre, correo, rol, estado FROM usuarios ORDER BY id ASC");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -184,7 +197,8 @@ function obtener_todos_usuarios($con) {
     }
 }
 
-function insertar_usuario($con, $usuario, $nombre, $correo, $clave_hash, $rol, $estado) {
+function insertar_usuario($con, $usuario, $nombre, $correo, $clave_hash, $rol, $estado)
+{
     try {
         $stmt = $con->prepare("INSERT INTO usuarios (usuario, nombre, correo, clave, rol, estado) 
                                VALUES (:usuario, :nombre, :correo, :clave, :rol, :estado)");
@@ -200,7 +214,8 @@ function insertar_usuario($con, $usuario, $nombre, $correo, $clave_hash, $rol, $
     }
 }
 
-function actualizar_usuario($con, $id, $usuario, $nombre, $correo, $rol, $estado) {
+function actualizar_usuario($con, $id, $usuario, $nombre, $correo, $rol, $estado)
+{
     try {
         $stmt = $con->prepare("UPDATE usuarios SET usuario = :usuario, nombre = :nombre, correo = :correo, rol = :rol, estado = :estado WHERE id = :id");
         $stmt->bindParam(':usuario', $usuario);
@@ -219,11 +234,13 @@ function actualizar_usuario($con, $id, $usuario, $nombre, $correo, $rol, $estado
 // FUNCIONES DE TRANSACCIÓN (ESTUDIANTES Y RESERVAS)
 // ==========================================
 
-function obtener_o_crear_estudiante($con, $id_usuario) {
+function obtener_o_crear_estudiante($con, $id_usuario)
+{
     $stmt = $con->prepare("SELECT nombre, correo FROM usuarios WHERE id = ?");
     $stmt->execute([$id_usuario]);
     $usr = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$usr) throw new Exception("Usuario base inválido");
+    if (!$usr)
+        throw new Exception("Usuario base inválido");
 
     $stmt2 = $con->prepare("SELECT id FROM estudiantes WHERE correo = ?");
     $stmt2->execute([$usr['correo']]);
@@ -238,7 +255,8 @@ function obtener_o_crear_estudiante($con, $id_usuario) {
     }
 }
 
-function procesar_transaccion_reserva($con, $id_usuario, $id_libro, $fecha_devolucion) {
+function procesar_transaccion_reserva($con, $id_usuario, $id_libro, $fecha_devolucion)
+{
     try {
         $con->beginTransaction();
 
@@ -258,7 +276,7 @@ function procesar_transaccion_reserva($con, $id_usuario, $id_libro, $fecha_devol
         // 4. Actualización Lógica de Inventario (Con bloqueo preventivo de Agotado)
         $stmt3 = $con->prepare("UPDATE libros SET cantidad = cantidad - 1 WHERE id = ? AND cantidad > 0");
         $stmt3->execute([$id_libro]);
-        
+
         if ($stmt3->rowCount() == 0) {
             throw new Exception("El libro se quedó sin stock justo mientras intentabas reservarlo.");
         }
@@ -275,14 +293,15 @@ function procesar_transaccion_reserva($con, $id_usuario, $id_libro, $fecha_devol
 // CONSULTAS PARA LOS DASHBOARDS DEL ESTUDIANTE
 // ==========================================
 
-function obtener_libros_reservados_estudiante($con, $id_usuario) {
+function obtener_libros_reservados_estudiante($con, $id_usuario)
+{
     try {
         $id_estudiante = obtener_o_crear_estudiante($con, $id_usuario);
         $stmt = $con->prepare("SELECT id_libro FROM prestamos WHERE id_estudiante = ? AND estado = 'activo'");
         $stmt->execute([$id_estudiante]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $ids = [];
-        foreach($rows as $row) {
+        foreach ($rows as $row) {
             $ids[] = $row['id_libro'];
         }
         return $ids;
@@ -291,7 +310,8 @@ function obtener_libros_reservados_estudiante($con, $id_usuario) {
     }
 }
 
-function tiene_prestamos_retrasados($con, $id_usuario) {
+function tiene_prestamos_retrasados($con, $id_usuario)
+{
     try {
         $id_estudiante = obtener_o_crear_estudiante($con, $id_usuario);
         $stmt = $con->prepare("SELECT COUNT(*) FROM prestamos WHERE id_estudiante = ? AND estado = 'activo' AND fecha_devolucion < CURDATE()");
@@ -302,7 +322,8 @@ function tiene_prestamos_retrasados($con, $id_usuario) {
     }
 }
 
-function obtener_detalle_prestamos_estudiante($con, $id_usuario) {
+function obtener_detalle_prestamos_estudiante($con, $id_usuario)
+{
     try {
         $id_estudiante = obtener_o_crear_estudiante($con, $id_usuario);
         $sql = "
@@ -331,10 +352,11 @@ function obtener_detalle_prestamos_estudiante($con, $id_usuario) {
     }
 }
 
-function procesar_transaccion_devolucion($con, $id_usuario, $id_prestamo) {
+function procesar_transaccion_devolucion($con, $id_usuario, $id_prestamo)
+{
     try {
         $con->beginTransaction();
-        
+
         $id_estudiante = obtener_o_crear_estudiante($con, $id_usuario);
 
         // Validar que el prestamo exista, sea suyo y esté activo
@@ -374,7 +396,8 @@ function procesar_transaccion_devolucion($con, $id_usuario, $id_prestamo) {
 }
 
 
-function obtener_todos_prestamos($con) {
+function obtener_todos_prestamos($con)
+{
     try {
         $sql = "
             SELECT 
@@ -401,10 +424,11 @@ function obtener_todos_prestamos($con) {
     }
 }
 
-function procesar_devolucion_admin($con, $id_prestamo, $id_admin) {
+function procesar_devolucion_admin($con, $id_prestamo, $id_admin)
+{
     try {
         $con->beginTransaction();
-        
+
         $stmt_val = $con->prepare("SELECT id_libro, estado FROM prestamos WHERE id = ? FOR UPDATE");
         $stmt_val->execute([$id_prestamo]);
         $prestamo = $stmt_val->fetch(PDO::FETCH_ASSOC);
@@ -436,6 +460,153 @@ function procesar_devolucion_admin($con, $id_prestamo, $id_admin) {
     } catch (Exception $e) {
         $con->rollBack();
         throw $e;
+    }
+}
+
+// ==========================================
+// MÓDULO DE REPORTES Y ESTADÍSTICAS 📊
+// ==========================================
+
+/**
+ * Obtiene métricas globales (KPIs) de la biblioteca.
+ */
+function obtener_kpis_reportes($con)
+{
+    try {
+        $kpis = [];
+
+        // Títulos únicos
+        $kpis['total_titulos'] = (int) $con->query("SELECT COUNT(*) FROM libros")->fetchColumn();
+
+        // Stock físico total
+        $kpis['stock_total'] = (int) $con->query("SELECT IFNULL(SUM(cantidad), 0) FROM libros")->fetchColumn();
+
+        // Préstamos activos
+        $kpis['prestamos_activos'] = (int) $con->query("SELECT COUNT(*) FROM prestamos WHERE estado = 'activo'")->fetchColumn();
+
+        // Préstamos vencidos/retrasados
+        $kpis['prestamos_atrasados'] = (int) $con->query("SELECT COUNT(*) FROM prestamos WHERE estado = 'activo' AND fecha_devolucion < CURDATE()")->fetchColumn();
+
+        return $kpis;
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar KPIs de reportes: " . $e->getMessage());
+    }
+}
+
+/**
+ * Obtiene los libros más prestados históricamente.
+ */
+function obtener_libros_mas_prestados($con, $limite = 5)
+{
+    try {
+        $sql = "SELECT l.titulo, COUNT(p.id) as total_prestamos 
+                FROM prestamos p 
+                JOIN libros l ON p.id_libro = l.id 
+                GROUP BY p.id_libro 
+                ORDER BY total_prestamos DESC 
+                LIMIT :limite";
+        $stmt = $con->prepare($sql);
+        $stmt->bindValue(':limite', $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar libros más prestados: " . $e->getMessage());
+    }
+}
+
+/**
+ * Obtiene los préstamos agrupados por materia.
+ */
+function obtener_prestamos_por_materia($con)
+{
+    try {
+        $sql = "SELECT m.nombre as materia, COUNT(p.id) as total 
+                FROM prestamos p 
+                JOIN libros l ON p.id_libro = l.id 
+                JOIN materias m ON l.id_materia = m.id 
+                GROUP BY l.id_materia 
+                ORDER BY total DESC";
+        return $con->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar préstamos por materia: " . $e->getMessage());
+    }
+}
+
+/**
+ * Obtiene el estado de todos los préstamos para la comparativa circular.
+ */
+function obtener_estado_prestamos($con)
+{
+    try {
+        $estados = [
+            'devuelto' => 0,
+            'activo_a_tiempo' => 0,
+            'retrasado' => 0
+        ];
+
+        $estados['devuelto'] = (int) $con->query("SELECT COUNT(*) FROM prestamos WHERE estado = 'devuelto'")->fetchColumn();
+        $estados['activo_a_tiempo'] = (int) $con->query("SELECT COUNT(*) FROM prestamos WHERE estado = 'activo' AND fecha_devolucion >= CURDATE()")->fetchColumn();
+        $estados['retrasado'] = (int) $con->query("SELECT COUNT(*) FROM prestamos WHERE estado = 'activo' AND fecha_devolucion < CURDATE()")->fetchColumn();
+
+        return $estados;
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar distribución de estados: " . $e->getMessage());
+    }
+}
+
+/**
+ * Obtiene los libros bajo el límite de stock mínimo.
+ */
+function obtener_libros_bajo_stock($con)
+{
+    try {
+        $sql = "SELECT l.id, l.titulo, l.cantidad, l.stock_minimo, a.nombre as autor_nombre 
+                FROM libros l 
+                LEFT JOIN autor a ON l.id_autor = a.id 
+                WHERE l.cantidad <= l.stock_minimo 
+                ORDER BY l.cantidad ASC";
+        return $con->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar libros con bajo stock: " . $e->getMessage());
+    }
+}
+
+/**
+ * Obtiene los estudiantes con más préstamos activos retrasados.
+ */
+function obtener_estudiantes_con_mas_retrasos($con)
+{
+    try {
+        $sql = "SELECT e.nombre, e.correo, l.titulo, p.fecha_devolucion, DATEDIFF(CURDATE(), p.fecha_devolucion) as dias_retraso
+                FROM prestamos p
+                JOIN estudiantes e ON p.id_estudiante = e.id
+                JOIN libros l ON p.id_libro = l.id
+                WHERE p.estado = 'activo' AND p.fecha_devolucion < CURDATE()
+                ORDER BY dias_retraso DESC";
+        return $con->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar deudores: " . $e->getMessage());
+    }
+}
+
+/**
+ * Obtiene los movimientos históricos recientes con nombres de libros y usuarios.
+ */
+function obtener_movimientos_recientes($con, $limite = 5)
+{
+    try {
+        $sql = "SELECT m.id, l.titulo, m.tipo, m.cantidad, m.fecha, u.nombre as usuario_nombre 
+                FROM movimientos m 
+                JOIN libros l ON m.id_libro = l.id 
+                LEFT JOIN usuarios u ON m.id_usuario = u.id 
+                ORDER BY m.id DESC 
+                LIMIT :limite";
+        $stmt = $con->prepare($sql);
+        $stmt->bindValue(':limite', $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar movimientos recientes: " . $e->getMessage());
     }
 }
 
