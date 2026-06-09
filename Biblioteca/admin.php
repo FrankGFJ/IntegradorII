@@ -19,6 +19,7 @@ $autores = [];
 $materias = [];
 $editoriales = [];
 $usuarios = [];
+$idiomas = [];
 
 if ($seccion === 'inventario') {
     try {
@@ -26,6 +27,7 @@ if ($seccion === 'inventario') {
         $autores = obtener_autores($con);
         $materias = obtener_materias($con);
         $editoriales = obtener_editoriales($con);
+        $idiomas = obtener_idiomas($con);
     } catch (Exception $e) {
         $error_db = $e->getMessage();
     }
@@ -140,6 +142,30 @@ if ($seccion === 'inventario') {
                 </header>
 
                 <div class="content-body">
+                    <?php if (isset($_GET['msg'])): ?>
+                        <div
+                            style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            ✅ <?php
+                                $msg_val = $_GET['msg'];
+                                if ($msg_val === 'eliminado') {
+                                    echo 'Libro eliminado exitosamente.';
+                                } elseif ($msg_val === 'actualizado') {
+                                    echo 'Libro actualizado exitosamente.';
+                                } elseif ($msg_val === 'creado') {
+                                    echo 'Libro registrado exitosamente.';
+                                } else {
+                                    echo htmlspecialchars($msg_val);
+                                }
+                            ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (isset($_GET['error'])): ?>
+                        <div
+                            style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            ⚠️ <?= htmlspecialchars($_GET['error']) ?>
+                        </div>
+                    <?php endif; ?>
+
                     <!-- Tabla del inventario (Con datos de prueba listos para ser cambiados por BDD) -->
                     <div class="table-container">
                         <table class="data-table" id="inventory-table">
@@ -158,9 +184,12 @@ if ($seccion === 'inventario') {
                                         style="cursor: pointer;" title="Haz clic para ordenar">Categoría <span
                                             class="sort-icon"></span></th>
                                     <th class="sortable" onclick="ordenarTabla(4, 'inventory-table')"
-                                        style="cursor: pointer;" title="Haz clic para ordenar">Stock <span
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Idioma <span
                                             class="sort-icon"></span></th>
                                     <th class="sortable" onclick="ordenarTabla(5, 'inventory-table')"
+                                        style="cursor: pointer;" title="Haz clic para ordenar">Stock <span
+                                            class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="ordenarTabla(6, 'inventory-table')"
                                         style="cursor: pointer;" title="Haz clic para ordenar">Estado <span
                                             class="sort-icon"></span></th>
                                     <th>Acciones</th>
@@ -189,6 +218,7 @@ if ($seccion === 'inventario') {
                                             <td><?= htmlspecialchars($libro['titulo']) ?></td>
                                             <td><?= htmlspecialchars($libro['autor_nombre'] ?? 'Sin autor') ?></td>
                                             <td><?= htmlspecialchars($libro['categoria_nombre'] ?? 'Sin categoría') ?></td>
+                                            <td><?= htmlspecialchars($libro['idioma_nombre'] ?? 'Español') ?></td>
                                             <td><?= htmlspecialchars($libro['cantidad']) ?></td>
                                             <td><span class="status-badge" style="<?= $estado_clase ?>"><?= $estado_texto ?></span>
                                             </td>
@@ -202,7 +232,7 @@ if ($seccion === 'inventario') {
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">
+                                        <td colspan="8" style="text-align: center; color: var(--text-light); padding: 3rem;">
                                             📦 No hay libros registrados en la base de datos.<br>
                                             <?php if (isset($error_db))
                                                 echo "<span style='color:red;'>$error_db</span>"; ?>
@@ -229,6 +259,19 @@ if ($seccion === 'inventario') {
                 </header>
 
                 <div class="content-body">
+                    <?php if (isset($_GET['msg'])): ?>
+                        <div
+                            style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            ✅ <?= htmlspecialchars($_GET['msg']) ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (isset($_GET['error'])): ?>
+                        <div
+                            style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            ⚠️ <?= htmlspecialchars($_GET['error']) ?>
+                        </div>
+                    <?php endif; ?>
+
                     <div class="table-container">
                         <table class="data-table" id="users-table">
                             <thead>
@@ -1078,11 +1121,6 @@ if ($seccion === 'inventario') {
                         </div>
 
                         <div class="form-group">
-                            <label>Stock Mínimo</label>
-                            <input type="number" name="stock_minimo" id="edit_stock_minimo" min="0">
-                        </div>
-
-                        <div class="form-group">
                             <label>Páginas (Opcional)</label>
                             <input type="number" name="num_pag" id="edit_num_pag" min="1">
                         </div>
@@ -1090,6 +1128,21 @@ if ($seccion === 'inventario') {
                         <div class="form-group">
                             <label>Año (Opcional)</label>
                             <input type="number" name="anio_edicion" id="edit_anio_edicion" min="1500" max="2100">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Idioma (ID - Nombre)</label>
+                            <select name="id_idioma" id="edit_idioma" onchange="verificarNuevo('idioma')">
+                                <option value="">-- Seleccione un idioma --</option>
+                                <option value="NEW" style="font-weight:bold; color:var(--primary);">Agregar Nuevo</option>
+                                <?php foreach ($idiomas as $idiomaRow): ?>
+                                    <option value="<?= $idiomaRow['id'] ?>">
+                                        <?= htmlspecialchars($idiomaRow['nombre']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <input type="text" name="nuevo_idioma" id="input_nuevo_idioma"
+                                style="display:none; margin-top:0.5rem;" placeholder="Nombre del nuevo idioma...">
                         </div>
                     </div>
                 </div>
@@ -1133,7 +1186,7 @@ if ($seccion === 'inventario') {
                 <h2 id="usr_modal_title">Registrar Nuevo Usuario</h2>
                 <button type="button" class="btn-close" onclick="cerrarModalUsuario()">×</button>
             </div>
-            <form method="POST" action="procesar_usuario.php">
+            <form id="form-usuario" method="POST" action="procesar_usuario.php">
                 <div class="modal-body">
                     <input type="hidden" name="accion" id="usr_accion" value="crear">
                     <input type="hidden" name="id" id="usr_id" value="">
@@ -1151,9 +1204,25 @@ if ($seccion === 'inventario') {
                             <label>Correo Electrónico</label>
                             <input type="email" name="correo" id="usr_correo" required placeholder="frank@ejemplo.com">
                         </div>
-                        <div class="form-group" id="usr_clave_container">
-                            <label>Contraseña</label>
-                            <input type="password" name="clave" id="usr_clave" required placeholder="••••••••">
+                        <div class="form-group full-col" id="usr_clave_wrapper" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group" id="usr_clave_container" style="margin-bottom: 0;">
+                                <label>Contraseña</label>
+                                <input type="password" name="clave" id="usr_clave" required placeholder="••••••••">
+                                <div id="password-requirements" style="margin-top: 0.5rem; font-size: 0.75rem; line-height: 1.5; color: var(--text-light); display: flex; flex-direction: column; gap: 0.2rem;">
+                                    <span id="req-length" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Entre 8 y 20 caracteres</span>
+                                    <span id="req-upper" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al menos una mayúscula (A-Z)</span>
+                                    <span id="req-lower" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al menos una minúscula (a-z)</span>
+                                    <span id="req-number" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al menos un número (0-9)</span>
+                                    <span id="req-spaces" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Sin espacios en blanco</span>
+                                </div>
+                            </div>
+                            <div class="form-group" id="usr_confirmar_clave_container" style="margin-bottom: 0;">
+                                <label>Confirmar Contraseña</label>
+                                <input type="password" name="confirmar_clave" id="usr_confirmar_clave" required placeholder="••••••••">
+                                <div id="password-match-container" style="margin-top: 0.5rem; font-size: 0.75rem; line-height: 1.5;">
+                                    <span id="password-match-msg" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Las contraseñas no coinciden</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>Rol del Sistema</label>
@@ -1481,14 +1550,26 @@ if ($seccion === 'inventario') {
             document.getElementById('edit_autor').value = '';
             document.getElementById('edit_editorial').value = '';
             document.getElementById('edit_materia').value = '';
-            document.getElementById('edit_cantidad').value = '1';
-            document.getElementById('edit_stock_minimo').value = '0';
+            document.getElementById('edit_cantidad').value = '5'; // Stock predeterminado de 5
             document.getElementById('edit_num_pag').value = '';
             document.getElementById('edit_anio_edicion').value = '';
+            
+            // Seleccionar 'Español' por defecto en el select de idioma
+            let selectIdioma = document.getElementById('edit_idioma');
+            if (selectIdioma) {
+                selectIdioma.value = '';
+                for (let opt of selectIdioma.options) {
+                    if (opt.text.toLowerCase().trim() === 'español') {
+                        selectIdioma.value = opt.value;
+                        break;
+                    }
+                }
+            }
 
             verificarNuevo('autor');
             verificarNuevo('editorial');
             verificarNuevo('materia');
+            verificarNuevo('idioma');
 
             document.getElementById('modal-edicion').classList.add('active');
         }
@@ -1500,15 +1581,18 @@ if ($seccion === 'inventario') {
             verificarNuevo('autor');
             verificarNuevo('editorial');
             verificarNuevo('materia');
+            verificarNuevo('idioma');
+            
             document.getElementById('edit_id').value = libro.id;
             document.getElementById('edit_titulo').value = libro.titulo;
             document.getElementById('edit_autor').value = libro.id_autor || '';
             document.getElementById('edit_editorial').value = libro.id_editorial || '';
             document.getElementById('edit_materia').value = libro.id_materia || '';
             document.getElementById('edit_cantidad').value = libro.cantidad;
-            document.getElementById('edit_stock_minimo').value = libro.stock_minimo;
             document.getElementById('edit_num_pag').value = libro.num_pag || '';
             document.getElementById('edit_anio_edicion').value = libro.anio_edicion || '';
+            
+            document.getElementById('edit_idioma').value = libro.id_idioma || '';
 
             document.getElementById('modal-edicion').classList.add('active');
         }
@@ -1553,6 +1637,59 @@ if ($seccion === 'inventario') {
 
         // --- FUNCIONES DEL MÓDULO DE USUARIOS ---
 
+        function validarContrasenaRealTime() {
+            let val = document.getElementById('usr_clave').value;
+            let val_confirm = document.getElementById('usr_confirmar_clave').value;
+
+            // 1. Longitud entre 8 y 20
+            let rLength = val.length >= 8 && val.length <= 20;
+            updateReqIndicator('req-length', rLength);
+
+            // 2. Al menos una mayúscula (A-Z)
+            let rUpper = /[A-Z]/.test(val);
+            updateReqIndicator('req-upper', rUpper);
+
+            // 3. Al menos una minúscula (a-z)
+            let rLower = /[a-z]/.test(val);
+            updateReqIndicator('req-lower', rLower);
+
+            // 4. Al menos un número (0-9)
+            let rNumber = /[0-9]/.test(val);
+            updateReqIndicator('req-number', rNumber);
+
+            // 5. Sin espacios
+            let rSpaces = val.length > 0 && !/\s/.test(val);
+            updateReqIndicator('req-spaces', rSpaces && val.length > 0);
+
+            // 6. Coincidencia
+            let rMatch = val.length > 0 && val === val_confirm;
+            let matchMsg = document.getElementById('password-match-msg');
+            if (matchMsg) {
+                if (rMatch) {
+                    matchMsg.innerHTML = "✅ Las contraseñas coinciden";
+                    matchMsg.style.color = "#166534";
+                } else {
+                    matchMsg.innerHTML = "❌ Las contraseñas no coinciden";
+                    matchMsg.style.color = "#dc2626";
+                }
+            }
+
+            return rLength && rUpper && rLower && rNumber && rSpaces && rMatch;
+        }
+
+        function updateReqIndicator(id, passed) {
+            let el = document.getElementById(id);
+            if (!el) return;
+            let text = el.textContent.substring(2); // remove emoji and space
+            if (passed) {
+                el.innerHTML = "✅ " + text;
+                el.style.color = "#166534";
+            } else {
+                el.innerHTML = "❌ " + text;
+                el.style.color = "#dc2626";
+            }
+        }
+
         function abrirModalUsuarioCrear() {
             document.getElementById('usr_modal_title').textContent = 'Registrar Nuevo Usuario';
             document.getElementById('usr_accion').value = 'crear';
@@ -1565,9 +1702,14 @@ if ($seccion === 'inventario') {
             document.getElementById('usr_estado').value = '1';
 
             // Mostrar y requerir clave para nuevo usuario
-            document.getElementById('usr_clave_container').style.display = 'block';
+            document.getElementById('usr_clave_wrapper').style.display = 'grid';
             document.getElementById('usr_clave').required = true;
             document.getElementById('usr_clave').value = '';
+            document.getElementById('usr_confirmar_clave').required = true;
+            document.getElementById('usr_confirmar_clave').value = '';
+
+            // Resetear validaciones en tiempo real
+            validarContrasenaRealTime();
 
             document.getElementById('modal-usuario').classList.add('active');
         }
@@ -1584,9 +1726,11 @@ if ($seccion === 'inventario') {
             document.getElementById('usr_estado').value = usr.estado;
 
             // Ocultar campo de contraseña (no se edita aquí)
-            document.getElementById('usr_clave_container').style.display = 'none';
+            document.getElementById('usr_clave_wrapper').style.display = 'none';
             document.getElementById('usr_clave').required = false;
             document.getElementById('usr_clave').value = '';
+            document.getElementById('usr_confirmar_clave').required = false;
+            document.getElementById('usr_confirmar_clave').value = '';
 
             document.getElementById('modal-usuario').classList.add('active');
         }
@@ -1594,6 +1738,31 @@ if ($seccion === 'inventario') {
         function cerrarModalUsuario() {
             document.getElementById('modal-usuario').classList.remove('active');
         }
+
+        // Registrar los event listeners de contraseñas cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            const usrClave = document.getElementById('usr_clave');
+            const usrConfirmarClave = document.getElementById('usr_confirmar_clave');
+            const formUsuario = document.getElementById('form-usuario');
+
+            if (usrClave && usrConfirmarClave) {
+                usrClave.addEventListener('input', validarContrasenaRealTime);
+                usrConfirmarClave.addEventListener('input', validarContrasenaRealTime);
+            }
+
+            if (formUsuario) {
+                formUsuario.addEventListener('submit', function(e) {
+                    let accion = document.getElementById('usr_accion').value;
+                    if (accion === 'crear') {
+                        let ok = validarContrasenaRealTime();
+                        if (!ok) {
+                            e.preventDefault();
+                            alert("Por favor, asegúrese de cumplir con todos los requisitos de contraseña antes de registrar al usuario.");
+                        }
+                    }
+                });
+            }
+        });
 
         function filtrarUsuarios() {
             let input = document.getElementById("searchUser");

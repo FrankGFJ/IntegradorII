@@ -24,9 +24,12 @@ $libros_reservados_ids = obtener_libros_reservados_estudiante($con, $_SESSION['u
 $tope_alcanzado = count($libros_reservados_ids) >= 2;
 $tiene_retraso = tiene_prestamos_retrasados($con, $_SESSION['user_id']);
 
-$mis_prestamos = [];
-if ($seccion === 'mis_libros') {
-    $mis_prestamos = obtener_detalle_prestamos_estudiante($con, $_SESSION['user_id']);
+$mis_prestamos = obtener_detalle_prestamos_estudiante($con, $_SESSION['user_id']);
+$prestamos_activos = [];
+foreach ($mis_prestamos as $p) {
+    if ($p['estado'] === 'activo' || $p['estado'] === 'retrasado') {
+        $prestamos_activos[] = $p;
+    }
 }
 
 $user_info = ['nombre' => $_SESSION['nombre'], 'correo' => '', 'rol' => 'Estudiante'];
@@ -37,6 +40,78 @@ try {
         $user_info = $row;
     }
 } catch (Exception $e) {}
+
+function render_notif_bell($prestamos_activos) {
+    $num_activos = count($prestamos_activos);
+    
+    $tiene_retrasados = false;
+    $tiene_proximos = false;
+    foreach ($prestamos_activos as $p) {
+        $dias = (strtotime($p['fecha_devolucion']) - strtotime(date('Y-m-d'))) / (60 * 60 * 24);
+        if ($p['estado'] === 'retrasado' || $dias < 0) {
+            $tiene_retrasados = true;
+        } elseif ($dias <= 2) {
+            $tiene_proximos = true;
+        }
+    }
+
+    $titulo_notif = "Préstamos Activos";
+    $badge_bg = "background: var(--primary);";
+    if ($tiene_retrasados) {
+        $titulo_notif = "⚠️ Préstamo Vencido";
+        $badge_bg = "background: #ef4444;";
+    } elseif ($tiene_proximos) {
+        $titulo_notif = "⏳ Préstamo por vencer";
+        $badge_bg = "background: #ea580c;";
+    }
+
+    ob_start();
+    ?>
+    <div class="notif-container">
+        <button type="button" class="notif-bell-btn" onclick="toggleNotifDropdown(event)" title="Notificaciones de préstamos">
+            🔔
+            <?php if ($num_activos > 0): ?>
+                <span class="notif-badge" style="<?= $tiene_retrasados ? 'background-color: #ef4444; box-shadow: 0 2px 4px rgba(239,68,68,0.3);' : ($tiene_proximos ? 'background-color: #ea580c; box-shadow: 0 2px 4px rgba(234,88,12,0.3);' : '') ?>"><?= $num_activos ?></span>
+            <?php endif; ?>
+        </button>
+        <div class="notif-dropdown" id="notifDropdown">
+            <div class="notif-dropdown-header">
+                <span><?= $titulo_notif ?></span>
+                <span style="font-size: 0.8rem; <?= $badge_bg ?> color: white; padding: 0.15rem 0.5rem; border-radius: 9999px;"><?= $num_activos ?></span>
+            </div>
+            <div class="notif-dropdown-body">
+                <?php if ($num_activos > 0): ?>
+                    <?php foreach ($prestamos_activos as $p): ?>
+                        <?php 
+                            $dias = (strtotime($p['fecha_devolucion']) - strtotime(date('Y-m-d'))) / (60 * 60 * 24);
+                            $es_retraso = $p['estado'] === 'retrasado' || $dias < 0;
+                            if ($es_retraso) {
+                                $time_text = "⚠️ RETRASADO (" . abs($dias) . " días)";
+                                $time_color = "color: #ef4444;";
+                            } elseif ($dias == 0) {
+                                $time_text = "⏰ DEVOLVER HOY";
+                                $time_color = "color: #ea580c;";
+                            } else {
+                                $time_text = "⏱️ Faltan $dias días";
+                                $time_color = "color: #059669;";
+                            }
+                        ?>
+                        <a href="estudiante.php?seccion=mis_libros" class="notif-item">
+                            <div class="notif-item-title"><?= htmlspecialchars($p['titulo']) ?></div>
+                            <div class="notif-item-time" style="<?= $time_color ?>"><?= $time_text ?></div>
+                        </a>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="notif-item-empty">
+                        🎉 ¡Al día! No tienes préstamos activos.
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -98,6 +173,148 @@ try {
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+
+        /* Contenedor de la campanita y dropdown */
+        .notif-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        /* Botón de la campanita */
+        .notif-bell-btn {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 50%;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .notif-bell-btn:hover {
+            transform: scale(1.1) rotate(15deg);
+            background: #ffffff;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Badge rojo indicador */
+        .notif-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 800;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+            animation: pulse-badge 2s infinite;
+        }
+
+        @keyframes pulse-badge {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        /* Panel Dropdown de Notificaciones */
+        .notif-dropdown {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 12px);
+            width: 340px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 1.25rem;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.12);
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .notif-dropdown.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        /* Cabecera del dropdown */
+        .notif-dropdown-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-weight: 700;
+            color: var(--text-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95rem;
+            background: rgba(249, 250, 251, 0.5);
+        }
+
+        /* Cuerpo del dropdown */
+        .notif-dropdown-body {
+            max-height: 280px;
+            overflow-y: auto;
+            padding: 0.5rem 0;
+        }
+
+        /* Elemento del listado de préstamos */
+        .notif-item {
+            padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            transition: background 0.2s;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .notif-item:last-child {
+            border-bottom: none;
+        }
+
+        .notif-item:hover {
+            background: rgba(45, 106, 79, 0.05);
+        }
+
+        .notif-item-title {
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: var(--text-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .notif-item-time {
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .notif-item-empty {
+            padding: 2.5rem 1.25rem;
+            text-align: center;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 
@@ -122,6 +339,10 @@ try {
                 <a href="estudiante.php?seccion=mis_libros" class="nav-item <?= $seccion === 'mis_libros' ? 'active' : '' ?>">
                     <span class="icon">📜</span> Mis Libros Activos
                 </a>
+
+                <a href="estudiante.php?seccion=cambiar_contrasena" class="nav-item <?= $seccion === 'cambiar_contrasena' ? 'active' : '' ?>">
+                    <span class="icon">🔑</span> Cambiar Contraseña
+                </a>
             </nav>
 
             <div class="sidebar-footer" style="padding: 1.5rem; text-align: center; border-top: 1px solid rgba(0,0,0,0.05);">
@@ -142,6 +363,7 @@ try {
             <header class="top-header">
                 <h1>Catálogo de la Biblioteca</h1>
                 <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
+                    <?= render_notif_bell($prestamos_activos) ?>
                     <div class="search-box" style="position: relative;">
                         <!-- Lupa icon -->
                         <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
@@ -182,7 +404,8 @@ try {
                                 <th class="sortable" onclick="ordenarTabla(1, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Título <span class="sort-icon"></span></th>
                                 <th class="sortable" onclick="ordenarTabla(2, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Autor/es <span class="sort-icon"></span></th>
                                 <th class="sortable" onclick="ordenarTabla(3, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Materia <span class="sort-icon"></span></th>
-                                <th class="sortable" onclick="ordenarTabla(4, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Estado <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="ordenarTabla(4, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Idioma <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="ordenarTabla(5, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Estado <span class="sort-icon"></span></th>
                                 <th>Movimientos</th>
                             </tr>
                         </thead>
@@ -200,6 +423,7 @@ try {
                                         <td><strong><?= htmlspecialchars($libro['titulo']) ?></strong></td>
                                         <td><?= htmlspecialchars($libro['autor_nombre'] ?? 'Desconocido') ?></td>
                                         <td><span class="category-tag"><?= htmlspecialchars($libro['categoria_nombre'] ?? 'General') ?></span></td>
+                                        <td><?= htmlspecialchars($libro['idioma_nombre'] ?? 'Español') ?></td>
                                         <td>
                                             <span class="status-badge <?= $estado_class ?>">
                                                 <?= $estado_texto ?>
@@ -231,7 +455,7 @@ try {
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="6" style="text-align: center; color: var(--text-light); padding: 3rem;">
+                                    <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">
                                         📚 El catálogo actualmente está vacío.<br>
                                         <?php if (isset($error_db)) echo "<span style='color:red;'>$error_db</span>"; ?>
                                     </td>
@@ -244,8 +468,9 @@ try {
 <?php elseif ($seccion === 'mis_libros'): ?>
             <header class="top-header">
                 <h1>Mis Libros Activos</h1>
-                <div class="header-actions">
+                <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
                     <span style="font-size: 0.95rem; color: var(--text-light);">Aquí verás tus préstamos actuales y pasados.</span>
+                    <?= render_notif_bell($prestamos_activos) ?>
                 </div>
             </header>
 
@@ -327,6 +552,52 @@ try {
                     </div>
                 <?php endif; ?>
             </div>
+<?php elseif ($seccion === 'cambiar_contrasena'): ?>
+            <header class="top-header">
+                <h1>Cambiar Contraseña</h1>
+                <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
+                    <span style="font-size: 0.95rem; color: var(--text-light);">Mantén tu cuenta segura actualizando tu contraseña periódicamente.</span>
+                    <?= render_notif_bell($prestamos_activos) ?>
+                </div>
+            </header>
+
+            <div class="content-body" style="overflow-y: auto;">
+                <?php if (isset($_GET['msg'])): ?>
+                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+                        ✅ <?= htmlspecialchars($_GET['msg']) ?>
+                    </div>
+                <?php endif; ?>
+                <?php if (isset($_GET['error'])): ?>
+                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+                        ⚠️ <?= htmlspecialchars($_GET['error']) ?>
+                    </div>
+                <?php endif; ?>
+
+                <div style="max-width: 500px; background: rgba(255, 255, 255, 0.85); border-radius: 1.25rem; padding: 2rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid rgba(255,255,255,0.6); backdrop-filter: blur(15px);">
+                    <form action="procesar_cambio_clave.php" method="POST">
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="clave_actual" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-color);">Contraseña Actual</label>
+                            <input type="password" name="clave_actual" id="clave_actual" required 
+                                style="width: 100%; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid #d1d5db; background: rgba(255, 255, 255, 0.9); outline: none;">
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="clave_nueva" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-color);">Nueva Contraseña</label>
+                            <input type="password" name="clave_nueva" id="clave_nueva" required 
+                                style="width: 100%; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid #d1d5db; background: rgba(255, 255, 255, 0.9); outline: none;">
+                            <small style="color: var(--text-light); display: block; margin-top: 0.5rem;">La contraseña debe tener entre 8 y 20 caracteres, contener al menos una mayúscula, una minúscula y un número, y no tener espacios.</small>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 2rem;">
+                            <label for="clave_confirmar" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-color);">Confirmar Nueva Contraseña</label>
+                            <input type="password" name="clave_confirmar" id="clave_confirmar" required 
+                                style="width: 100%; padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid #d1d5db; background: rgba(255, 255, 255, 0.9); outline: none;">
+                        </div>
+
+                        <button type="submit" class="btn-primary" style="margin-top: 0; width: 100%;">Actualizar Contraseña</button>
+                    </form>
+                </div>
+            </div>
 <?php endif; ?>
         </main>
     </div>
@@ -349,8 +620,9 @@ try {
                         <label for="fecha_devolucion" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-color);">Fecha estimada de devolución:</label>
                         <input type="date" name="fecha_devolucion" id="fecha_devolucion" required 
                             min="<?= date('Y-m-d', strtotime('+1 day')) ?>" 
+                            max="<?= date('Y-m-d', strtotime('+7 days')) ?>" 
                             style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid rgba(0,0,0,0.1); background: #f9fafb; outline: none;">
-                        <small style="color: var(--text-light); display: block; margin-top: 0.5rem;">Debes elegir como mínimo el día de mañana.</small>
+                        <small style="color: var(--text-light); display: block; margin-top: 0.5rem;">Debes elegir como mínimo el día de mañana y como máximo 7 días a partir de hoy.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -473,6 +745,23 @@ try {
                 tbody.appendChild(row);
             });
         }
+
+        // Control de Dropdown de Notificaciones
+        function toggleNotifDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('notifDropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('active');
+            }
+        }
+
+        // Cerrar dropdown si se hace clic afuera
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('notifDropdown');
+            if (dropdown && !dropdown.contains(event.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
     </script>
 </body>
 </html>

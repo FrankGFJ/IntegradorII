@@ -24,6 +24,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
+    // Validar lógicamente que la fecha de devolución no exceda los 7 días a partir de hoy
+    $fecha_max = date('Y-m-d', strtotime('+7 days'));
+    if (strtotime($fecha_devolucion) > strtotime($fecha_max)) {
+        header("Location: estudiante.php?seccion=catalogo&error=" . urlencode("La fecha de devolución no puede superar los 7 días a partir de hoy (máximo hasta el " . date('d/m/Y', strtotime($fecha_max)) . ")."));
+        exit();
+    }
+
     // Regla de Negocio: Topex Máximo 2 libros a la vez.
     $libros_actuales = obtener_libros_reservados_estudiante($con, $id_usuario);
     if (count($libros_actuales) >= 2) {

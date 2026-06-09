@@ -23,10 +23,11 @@ function obtener_usuario_por_login($con, $login)
 function obtener_inventario_libros($con)
 {
     try {
-        $query = "SELECT l.*, a.nombre as autor_nombre, m.nombre as categoria_nombre 
+        $query = "SELECT l.*, a.nombre as autor_nombre, m.nombre as categoria_nombre, i.nombre as idioma_nombre 
                   FROM libros l 
                   LEFT JOIN autor a ON l.id_autor = a.id 
                   LEFT JOIN materias m ON l.id_materia = m.id
+                  LEFT JOIN idiomas i ON l.id_idioma = i.id
                   ORDER BY l.id ASC";
         $stmt = $con->query($query);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -51,15 +52,100 @@ function obtener_libro_por_id($con, $id)
 }
 
 /**
+ * Verifica si un libro tiene préstamos activos (en curso).
+ */
+function tiene_prestamos_activos($con, $id_libro)
+{
+    try {
+        $stmt = $con->prepare("SELECT COUNT(*) FROM prestamos WHERE id_libro = :id AND estado = 'activo'");
+        $stmt->bindParam(':id', $id_libro, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        throw new Exception("Error al verificar préstamos activos del libro: " . $e->getMessage());
+    }
+}
+
+/**
+ * Verifica si ya existe otro libro registrado con el mismo título, autor y editorial.
+ */
+function existe_libro_duplicado($con, $titulo, $id_autor, $id_editorial, $exclude_id = null)
+{
+    try {
+        $sql = "SELECT COUNT(*) FROM libros WHERE LOWER(TRIM(titulo)) = LOWER(TRIM(:titulo))";
+        
+        if ($id_autor === null) {
+            $sql .= " AND id_autor IS NULL";
+        } else {
+            $sql .= " AND id_autor = :id_autor";
+        }
+        
+        if ($id_editorial === null) {
+            $sql .= " AND id_editorial IS NULL";
+        } else {
+            $sql .= " AND id_editorial = :id_editorial";
+        }
+        
+        if ($exclude_id !== null) {
+            $sql .= " AND id != :exclude_id";
+        }
+        
+        $stmt = $con->prepare($sql);
+        $stmt->bindParam(':titulo', $titulo);
+        
+        if ($id_autor !== null) {
+            $stmt->bindParam(':id_autor', $id_autor, PDO::PARAM_INT);
+        }
+        if ($id_editorial !== null) {
+            $stmt->bindParam(':id_editorial', $id_editorial, PDO::PARAM_INT);
+        }
+        if ($exclude_id !== null) {
+            $stmt->bindParam(':exclude_id', $exclude_id, PDO::PARAM_INT);
+        }
+        
+        $stmt->execute();
+        return $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        throw new Exception("Error al verificar duplicidad de libro: " . $e->getMessage());
+    }
+}
+
+
+/**
  * Elimina un libro del inventario.
  */
 function eliminar_libro($con, $id)
 {
     try {
+        // 1. Verificar si hay préstamos activos
+        if (tiene_prestamos_activos($con, $id)) {
+            throw new Exception("No se puede eliminar el libro porque tiene préstamos activos pendientes de devolución.");
+        }
+
+        // 2. Verificar si hay historial de préstamos (devueltos)
+        $stmt = $con->prepare("SELECT COUNT(*) FROM prestamos WHERE id_libro = :id");
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
+        if ($stmt->fetchColumn() > 0) {
+            throw new Exception("No se puede eliminar el libro porque tiene historial de préstamos registrados en el sistema.");
+        }
+
+        // 3. Verificar si hay movimientos registrados en la bitácora
+        $stmt = $con->prepare("SELECT COUNT(*) FROM movimientos WHERE id_libro = :id");
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
+        if ($stmt->fetchColumn() > 0) {
+            throw new Exception("No se puede eliminar el libro porque tiene movimientos históricos registrados en la bitácora.");
+        }
+
+        // 4. Intentar eliminar
         $stmt = $con->prepare("DELETE FROM libros WHERE id = :id");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
     } catch (PDOException $e) {
+        if ($e->getCode() == '23000') {
+            throw new Exception("No se puede eliminar el libro porque está asociado a otros registros (préstamos o movimientos).");
+        }
         throw new Exception("Error al eliminar libro: " . $e->getMessage());
     }
 }
@@ -67,7 +153,7 @@ function eliminar_libro($con, $id)
 /**
  * Actualiza un libro en el inventario.
  */
-function actualizar_libro($con, $id, $titulo, $id_autor, $id_editorial, $id_materia, $cantidad, $stock_minimo, $num_pag, $anio_edicion)
+function actualizar_libro($con, $id, $titulo, $id_autor, $id_editorial, $id_materia, $cantidad, $num_pag, $anio_edicion, $id_idioma)
 {
     try {
         $sql = "UPDATE libros SET 
@@ -76,21 +162,21 @@ function actualizar_libro($con, $id, $titulo, $id_autor, $id_editorial, $id_mate
                 id_editorial = :id_editorial, 
                 id_materia = :id_materia, 
                 cantidad = :cantidad, 
-                stock_minimo = :stock_minimo, 
+                stock_minimo = 0, 
                 num_pag = :num_pag, 
-                anio_edicion = :anio_edicion 
+                anio_edicion = :anio_edicion,
+                id_idioma = :id_idioma
                 WHERE id = :id";
 
         $stmt = $con->prepare($sql);
         $stmt->bindParam(':titulo', $titulo);
-        // Si el valor es vacío se puede registrar como NULL si la BD lo permite, pero asumimos texto o enteros válidos
         $stmt->bindParam(':id_autor', $id_autor, PDO::PARAM_INT);
         $stmt->bindParam(':id_editorial', $id_editorial, PDO::PARAM_INT);
         $stmt->bindParam(':id_materia', $id_materia, PDO::PARAM_INT);
         $stmt->bindParam(':cantidad', $cantidad, PDO::PARAM_INT);
-        $stmt->bindParam(':stock_minimo', $stock_minimo, PDO::PARAM_INT);
         $stmt->bindParam(':num_pag', $num_pag, PDO::PARAM_INT);
         $stmt->bindParam(':anio_edicion', $anio_edicion, PDO::PARAM_INT);
+        $stmt->bindParam(':id_idioma', $id_idioma, PDO::PARAM_INT);
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
 
         return $stmt->execute();
@@ -118,6 +204,12 @@ function obtener_materias($con)
 function obtener_editoriales($con)
 {
     $stmt = $con->query("SELECT id, nombre FROM editorial ORDER BY nombre ASC");
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function obtener_idiomas($con)
+{
+    $stmt = $con->query("SELECT id, nombre FROM idiomas ORDER BY nombre ASC");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -159,13 +251,24 @@ function insertar_editorial($con, $nombre)
 }
 
 /**
+ * Inserta un nuevo idioma y devuelve su ID generado.
+ */
+function insertar_idioma($con, $nombre)
+{
+    $stmt = $con->prepare("INSERT INTO idiomas (nombre) VALUES (:nombre)");
+    $stmt->bindParam(':nombre', $nombre);
+    $stmt->execute();
+    return $con->lastInsertId();
+}
+
+/**
  * Agrega un nuevo libro al inventario.
  */
-function agregar_libro($con, $titulo, $id_autor, $id_editorial, $id_materia, $cantidad, $stock_minimo, $num_pag, $anio_edicion)
+function agregar_libro($con, $titulo, $id_autor, $id_editorial, $id_materia, $cantidad, $num_pag, $anio_edicion, $id_idioma)
 {
     try {
-        $sql = "INSERT INTO libros (titulo, id_autor, id_editorial, id_materia, cantidad, stock_minimo, num_pag, anio_edicion, fecha_registro) 
-                VALUES (:titulo, :id_autor, :id_editorial, :id_materia, :cantidad, :stock_minimo, :num_pag, :anio_edicion, NOW())";
+        $sql = "INSERT INTO libros (titulo, id_autor, id_editorial, id_materia, cantidad, stock_minimo, num_pag, anio_edicion, id_idioma, fecha_registro) 
+                VALUES (:titulo, :id_autor, :id_editorial, :id_materia, :cantidad, 0, :num_pag, :anio_edicion, :id_idioma, NOW())";
 
         $stmt = $con->prepare($sql);
         $stmt->bindParam(':titulo', $titulo);
@@ -173,9 +276,9 @@ function agregar_libro($con, $titulo, $id_autor, $id_editorial, $id_materia, $ca
         $stmt->bindParam(':id_editorial', $id_editorial, PDO::PARAM_INT);
         $stmt->bindParam(':id_materia', $id_materia, PDO::PARAM_INT);
         $stmt->bindParam(':cantidad', $cantidad, PDO::PARAM_INT);
-        $stmt->bindParam(':stock_minimo', $stock_minimo, PDO::PARAM_INT);
         $stmt->bindParam(':num_pag', $num_pag, PDO::PARAM_INT);
         $stmt->bindParam(':anio_edicion', $anio_edicion, PDO::PARAM_INT);
+        $stmt->bindParam(':id_idioma', $id_idioma, PDO::PARAM_INT);
 
         return $stmt->execute();
     } catch (PDOException $e) {
@@ -227,6 +330,63 @@ function actualizar_usuario($con, $id, $usuario, $nombre, $correo, $rol, $estado
         return $stmt->execute();
     } catch (PDOException $e) {
         throw new Exception("Error al actualizar usuario: " . $e->getMessage());
+    }
+}
+
+function actualizar_clave_usuario($con, $id, $clave_hash)
+{
+    try {
+        $stmt = $con->prepare("UPDATE usuarios SET clave = :clave WHERE id = :id");
+        $stmt->bindParam(':clave', $clave_hash);
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        return $stmt->execute();
+    } catch (PDOException $e) {
+        throw new Exception("Error al actualizar la contraseña: " . $e->getMessage());
+    }
+}
+
+
+/**
+ * Verifica si un nombre de usuario ya existe en la base de datos.
+ */
+function existe_usuario_por_username($con, $username, $exclude_id = null)
+{
+    try {
+        $sql = "SELECT COUNT(*) FROM usuarios WHERE usuario = :username";
+        if ($exclude_id !== null) {
+            $sql .= " AND id != :id";
+        }
+        $stmt = $con->prepare($sql);
+        $stmt->bindParam(':username', $username);
+        if ($exclude_id !== null) {
+            $stmt->bindParam(':id', $exclude_id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        return $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        throw new Exception("Error al verificar el nombre de usuario: " . $e->getMessage());
+    }
+}
+
+/**
+ * Verifica si un correo electrónico ya existe en la base de datos.
+ */
+function existe_usuario_por_correo($con, $correo, $exclude_id = null)
+{
+    try {
+        $sql = "SELECT COUNT(*) FROM usuarios WHERE correo = :correo";
+        if ($exclude_id !== null) {
+            $sql .= " AND id != :id";
+        }
+        $stmt = $con->prepare($sql);
+        $stmt->bindParam(':correo', $correo);
+        if ($exclude_id !== null) {
+            $stmt->bindParam(':id', $exclude_id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        return $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        throw new Exception("Error al verificar el correo electrónico: " . $e->getMessage());
     }
 }
 
