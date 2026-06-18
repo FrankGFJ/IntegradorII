@@ -31,6 +31,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
+    // Regla de Negocio: No tener libros con retraso.
+    if (tiene_prestamos_retrasados($con, $id_usuario)) {
+        header("Location: estudiante.php?seccion=catalogo&error=" . urlencode("No puedes realizar reservas porque tienes libros con retraso en su devolución."));
+        exit();
+    }
+
     try {
         procesar_transaccion_reserva($con, $id_usuario, $id_libro, $fecha_devolucion);
         header("Location: estudiante.php?seccion=catalogo&msg=" . urlencode("¡Reserva Confirmada! Tu libro te espera."));

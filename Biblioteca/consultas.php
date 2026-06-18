@@ -291,6 +291,17 @@ function obtener_libros_reservados_estudiante($con, $id_usuario) {
     }
 }
 
+function tiene_prestamos_retrasados($con, $id_usuario) {
+    try {
+        $id_estudiante = obtener_o_crear_estudiante($con, $id_usuario);
+        $stmt = $con->prepare("SELECT COUNT(*) FROM prestamos WHERE id_estudiante = ? AND estado = 'activo' AND fecha_devolucion < CURDATE()");
+        $stmt->execute([$id_estudiante]);
+        return $stmt->fetchColumn() > 0;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
 function obtener_detalle_prestamos_estudiante($con, $id_usuario) {
     try {
         $id_estudiante = obtener_o_crear_estudiante($con, $id_usuario);
@@ -349,6 +360,72 @@ function procesar_transaccion_devolucion($con, $id_usuario, $id_prestamo) {
         // 2. Registrar Movimiento Inverso
         $stmt_mov = $con->prepare("INSERT INTO movimientos (id_libro, tipo, cantidad, id_usuario) VALUES (?, 'devolucion', 1, ?)");
         $stmt_mov->execute([$id_libro, $id_usuario]);
+
+        // 3. Regresar Libro al Estante Virtual
+        $stmt_lib = $con->prepare("UPDATE libros SET cantidad = cantidad + 1 WHERE id = ?");
+        $stmt_lib->execute([$id_libro]);
+
+        $con->commit();
+        return true;
+    } catch (Exception $e) {
+        $con->rollBack();
+        throw $e;
+    }
+}
+
+
+function obtener_todos_prestamos($con) {
+    try {
+        $sql = "
+            SELECT 
+                p.id as id_prestamo, 
+                p.fecha_prestamo, 
+                p.fecha_devolucion, 
+                p.estado,
+                l.titulo, 
+                a.nombre as nombre_autor,
+                e.nombre as nombre_estudiante,
+                e.correo as correo_estudiante
+            FROM prestamos p
+            JOIN libros l ON p.id_libro = l.id
+            LEFT JOIN autor a ON l.id_autor = a.id
+            JOIN estudiantes e ON p.id_estudiante = e.id
+            ORDER BY 
+                CASE WHEN p.estado = 'activo' THEN 1 ELSE 2 END,
+                p.fecha_devolucion ASC
+        ";
+        $stmt = $con->query($sql);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+function procesar_devolucion_admin($con, $id_prestamo, $id_admin) {
+    try {
+        $con->beginTransaction();
+        
+        $stmt_val = $con->prepare("SELECT id_libro, estado FROM prestamos WHERE id = ? FOR UPDATE");
+        $stmt_val->execute([$id_prestamo]);
+        $prestamo = $stmt_val->fetch(PDO::FETCH_ASSOC);
+
+        if (!$prestamo) {
+            throw new Exception("El préstamo con ID $id_prestamo no fue encontrado.");
+        }
+        if ($prestamo['estado'] === 'devuelto') {
+            $con->commit();
+            return true;
+        }
+
+        $id_libro = $prestamo['id_libro'];
+
+        // 1. Actualizar Prestamo
+        $stmt_upd = $con->prepare("UPDATE prestamos SET estado = 'devuelto' WHERE id = ?");
+        $stmt_upd->execute([$id_prestamo]);
+
+        // 2. Registrar Movimiento Inverso
+        $stmt_mov = $con->prepare("INSERT INTO movimientos (id_libro, tipo, cantidad, id_usuario) VALUES (?, 'devolucion', 1, ?)");
+        $stmt_mov->execute([$id_libro, $id_admin]);
 
         // 3. Regresar Libro al Estante Virtual
         $stmt_lib = $con->prepare("UPDATE libros SET cantidad = cantidad + 1 WHERE id = ?");

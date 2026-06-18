@@ -22,6 +22,7 @@ if ($seccion === 'catalogo') {
 // Variables para Dinámica de Préstamos
 $libros_reservados_ids = obtener_libros_reservados_estudiante($con, $_SESSION['user_id']);
 $tope_alcanzado = count($libros_reservados_ids) >= 2;
+$tiene_retraso = tiene_prestamos_retrasados($con, $_SESSION['user_id']);
 
 $mis_prestamos = [];
 if ($seccion === 'mis_libros') {
@@ -163,21 +164,25 @@ try {
                     </div>
                 <?php endif; ?>
                 
-                <?php if ($tope_alcanzado): ?>
+                <?php if ($tiene_retraso): ?>
+                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                        <span>🚫 Tienes libros con retraso. Por favor, devuélvelos para poder realizar nuevas reservas.</span>
+                    </div>
+                <?php elseif ($tope_alcanzado): ?>
                     <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid #f59e0b; color: #b45309; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
                         <span>🛑 Límite de Cupo Alcanzado: No puedes reservar nuevos libros hasta no habilitar tus retornos en 'Mis Libros Activos'.</span>
                     </div>
                 <?php endif; ?>
 
                 <div class="table-container">
-                    <table class="data-table">
+                    <table class="data-table" id="student-catalog-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Título</th>
-                                <th>Autor/es</th>
-                                <th>Materia</th>
-                                <th>Estado</th>
+                                <th class="sortable" onclick="ordenarTabla(0, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">ID <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="ordenarTabla(1, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Título <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="ordenarTabla(2, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Autor/es <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="ordenarTabla(3, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Materia <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="ordenarTabla(4, 'student-catalog-table')" style="cursor: pointer;" title="Haz clic para ordenar">Estado <span class="sort-icon"></span></th>
                                 <th>Movimientos</th>
                             </tr>
                         </thead>
@@ -193,8 +198,8 @@ try {
                                     <tr>
                                         <td><span style="color: var(--text-light); font-size: 0.85rem;">#<?= htmlspecialchars($libro['id']) ?></span></td>
                                         <td><strong><?= htmlspecialchars($libro['titulo']) ?></strong></td>
-                                        <td><?= htmlspecialchars($libro['nombre_autor'] ?? 'Desconocido') ?></td>
-                                        <td><span class="category-tag"><?= htmlspecialchars($libro['nombre_materia'] ?? 'General') ?></span></td>
+                                        <td><?= htmlspecialchars($libro['autor_nombre'] ?? 'Desconocido') ?></td>
+                                        <td><span class="category-tag"><?= htmlspecialchars($libro['categoria_nombre'] ?? 'General') ?></span></td>
                                         <td>
                                             <span class="status-badge <?= $estado_class ?>">
                                                 <?= $estado_texto ?>
@@ -206,6 +211,10 @@ try {
                                                 <span style="display: inline-block; padding: 0.35rem 0.85rem; background: rgba(55, 65, 81, 0.08); color: #4b5563; border: 1px solid rgba(55, 65, 81, 0.2); border-radius: 9999px; font-size: 0.8rem; font-weight: 700;">
                                                     📌 Reservado por ti
                                                 </span>
+                                            <?php elseif ($tiene_retraso): ?>
+                                                <button class="btn-reservation" style="opacity: 0.5; background: #ef4444; border-color: #ef4444; color: white; cursor: not-allowed;" disabled>
+                                                    🚫 Bloqueado
+                                                </button>
                                             <?php elseif ($tope_alcanzado): ?>
                                                 <button class="btn-reservation" style="opacity: 0.5; background: #9ca3af; border-color: #9ca3af; color: white; cursor: not-allowed;" disabled>
                                                     ⛔ Cupo Lleno
@@ -311,9 +320,6 @@ try {
                                     <div style="margin-top: 0.5rem; text-align: center; padding: 0.5rem; background: rgba(255,255,255,0.7); border-radius: 0.5rem; <?= $color_tiempo ?> font-size: 0.85rem;">
                                         <?= $texto_tiempo ?>
                                     </div>
-                                    <button onclick="abrirModalDevolucion(<?= $prestamo['id_prestamo'] ?>, '<?= htmlspecialchars($prestamo['titulo'], ENT_QUOTES) ?>')" style="margin-top: 0.75rem; width: 100%; padding: 0.6rem; background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.25s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">
-                                        📤 Entregar Ahora
-                                    </button>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -355,31 +361,7 @@ try {
         </div>
     </div>
 
-    <!-- Modal Transaccional de Devolución Anticipada -->
-    <div id="modal-devolucion" class="modal-overlay">
-        <div class="modal-content" style="max-width: 450px;">
-            <div class="modal-header">
-                <h2 style="color: #ef4444;">Entregar Libro</h2>
-                <button type="button" class="btn-close" onclick="cerrarModalDevolucion()">×</button>
-            </div>
-            <form action="procesar_devolucion.php" method="POST">
-                <div class="modal-body">
-                    <p style="color: var(--text-light); margin-bottom: 1rem; line-height: 1.5;">¿Estás seguro que deseas realizar la entrega del ejemplar?</p>
-                    <p style="font-weight: 700; color: var(--text-color); font-size: 1.1rem; margin-bottom: 0.5rem;" id="txt_titulo_devolver"></p>
-                    
-                    <input type="hidden" name="id_prestamo" id="devolucion_id_prestamo" value="">
-                    
-                    <div style="background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; padding: 0.75rem; color: #b45309; font-size: 0.85rem; margin-top: 1rem;">
-                        Al continuar se desvinculará este libro de tu historial activo y recuperarás tu cupo en el catálogo.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn-secondary" onclick="cerrarModalDevolucion()">Cancelar</button>
-                    <button type="submit" class="btn-primary" style="background: #ef4444; border-color: #ef4444;">Hacer Entrega Oficial</button>
-                </div>
-            </form>
-        </div>
-    </div>
+
 
     <script>
         // Búsqueda instantánea en cliente
@@ -416,16 +398,80 @@ try {
         function cerrarModalReserva() {
             document.getElementById('modal-reserva').classList.remove('active');
         }
-        // Control del Modal de Devolución
-        function abrirModalDevolucion(idPrestamo, titulo) {
-            const modal = document.getElementById('modal-devolucion');
-            document.getElementById('devolucion_id_prestamo').value = idPrestamo;
-            document.getElementById('txt_titulo_devolver').textContent = titulo;
-            modal.classList.add('active');
-        }
-        
-        function cerrarModalDevolucion() {
-            document.getElementById('modal-devolucion').classList.remove('active');
+
+        const iconDefault = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; opacity: 0.4; margin-left: 4px;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>`;
+        const iconAsc = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-left: 4px;"><polyline points="18 15 12 9 6 15"></polyline></svg>`;
+        const iconDesc = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-left: 4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.sort-icon').forEach(span => {
+                span.innerHTML = iconDefault;
+            });
+        });
+
+        // Función para ordenar tablas
+        function ordenarTabla(n, tableId) {
+            let table = document.getElementById(tableId);
+            let tbody = table.querySelector("tbody");
+            let rows = Array.from(tbody.querySelectorAll("tr"));
+            
+            // Si la tabla está vacía (tiene la fila de 'no hay datos'), no hacemos nada
+            if (rows.length === 0 || rows[0].getElementsByTagName("td").length === 1) return;
+
+            let asc = table.getAttribute("data-sort-dir") === "asc";
+            let currentSortCol = table.getAttribute("data-sort-col");
+            
+            if (currentSortCol == n) {
+                asc = !asc; // Alternar dirección si es la misma columna
+            } else {
+                asc = true; // Por defecto ascendente para nueva columna
+            }
+            
+            table.setAttribute("data-sort-dir", asc ? "asc" : "desc");
+            table.setAttribute("data-sort-col", n);
+
+            rows.sort(function(a, b) {
+                let x = a.getElementsByTagName("td")[n];
+                let y = b.getElementsByTagName("td")[n];
+                
+                if (!x || !y) return 0;
+                
+                let valX = x.textContent.trim().toLowerCase();
+                let valY = y.textContent.trim().toLowerCase();
+                
+                // Limpiar el "#" de ID para estudiantes
+                if (valX.startsWith('#')) valX = valX.substring(1);
+                if (valY.startsWith('#')) valY = valY.substring(1);
+                
+                let numX = parseFloat(valX);
+                let numY = parseFloat(valY);
+                
+                if(!isNaN(numX) && !isNaN(numY) && valX == numX && valY == numY) {
+                    return asc ? numX - numY : numY - numX;
+                }
+                
+                if (valX < valY) return asc ? -1 : 1;
+                if (valX > valY) return asc ? 1 : -1;
+                return 0;
+            });
+
+            // Actualizar iconos de las cabeceras
+            let headers = table.querySelectorAll("thead th");
+            headers.forEach(function(th, index) {
+                let iconSpan = th.querySelector('.sort-icon');
+                if (iconSpan) {
+                    if (index === n) {
+                        iconSpan.innerHTML = asc ? iconAsc : iconDesc;
+                    } else {
+                        iconSpan.innerHTML = iconDefault;
+                    }
+                }
+            });
+
+            // Re-añadir las filas en el nuevo orden
+            rows.forEach(function(row) {
+                tbody.appendChild(row);
+            });
         }
     </script>
 </body>
