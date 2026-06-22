@@ -333,6 +333,42 @@ function actualizar_usuario($con, $id, $usuario, $nombre, $correo, $rol, $estado
     }
 }
 
+function tiene_prestamos_activos_usuario($con, $id_usuario)
+{
+    try {
+        $stmt = $con->prepare("
+            SELECT COUNT(*) 
+            FROM prestamos p
+            JOIN estudiantes e ON p.id_estudiante = e.id
+            JOIN usuarios u ON u.correo = e.correo
+            WHERE u.id = :id AND p.estado = 'activo'
+        ");
+        $stmt->bindParam(':id', $id_usuario, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        throw new Exception("Error al verificar préstamos activos del usuario: " . $e->getMessage());
+    }
+}
+
+function eliminar_usuario($con, $id)
+{
+    if (tiene_prestamos_activos_usuario($con, $id)) {
+        throw new Exception("No se puede eliminar el usuario porque tiene préstamos activos pendientes de devolución.");
+    }
+
+    try {
+        $stmt = $con->prepare("DELETE FROM usuarios WHERE id = :id");
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        return $stmt->execute();
+    } catch (PDOException $e) {
+        if ($e->getCode() == '23000') {
+            throw new Exception("No se puede eliminar el usuario porque tiene registros históricos asociados en el sistema.");
+        }
+        throw new Exception("Error al eliminar usuario: " . $e->getMessage());
+    }
+}
+
 function actualizar_clave_usuario($con, $id, $clave_hash)
 {
     try {

@@ -311,9 +311,11 @@ if ($seccion === 'inventario') {
                                             </td>
                                             <td><span class="status-badge" style="<?= $estado_class ?>"><?= $estado_texto ?></span>
                                             </td>
-                                            <td>
+                                            <td style="display: flex; gap: 0.5rem; justify-content: center;">
                                                 <button class="btn-icon" title="Editar"
                                                     onclick='abrirModalUsuarioEditar(<?= htmlspecialchars(json_encode($usr), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
+                                                <button class="btn-icon" title="Eliminar" style="color: #ef4444;"
+                                                    onclick="abrirModalUsuarioEliminar(<?= $usr['id'] ?>, '<?= htmlspecialchars($usr['usuario'], ENT_QUOTES) ?>')">🗑️</button>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -1248,6 +1250,31 @@ if ($seccion === 'inventario') {
             </form>
         </div>
     </div>
+    <!-- Modal de Eliminación de Usuario -->
+    <div id="modal-usuario-eliminar" class="modal-overlay">
+        <div class="modal-content" style="width: 400px; text-align: center;">
+            <div class="modal-header">
+                <h2 style="color: #ef4444;">Eliminar Usuario</h2>
+                <button type="button" class="btn-close" onclick="cerrarModalUsuarioEliminar()">×</button>
+            </div>
+            <form method="POST" action="procesar_usuario.php">
+                <div class="modal-body" style="padding-bottom: 0;">
+                    <input type="hidden" name="accion" value="eliminar">
+                    <input type="hidden" name="id" id="delete_usr_id">
+                    <p style="margin-bottom: 1rem;">¿Estás seguro de que deseas eliminar al usuario:</p>
+                    <h3 id="delete_usr_nombre" style="color: var(--text-color); margin-bottom: 1rem; font-weight: 800;">
+                    </h3>
+                    <p style="color: var(--text-light); font-size: 0.85rem;">Esta acción no se puede deshacer.</p>
+                </div>
+                <div class="modal-footer" style="justify-content: center; border-top: none; padding-top: 1.5rem;">
+                    <button type="button" class="btn-secondary" onclick="cerrarModalUsuarioEliminar()">Cancelar</button>
+                    <button type="submit" class="btn-primary"
+                        style="background: #ef4444; width: auto; margin-top: 0; border: none;">Sí, Eliminar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal Transaccional de Devolución Anticipada para Admin -->
     <div id="modal-devolucion-admin" class="modal-overlay">
         <div class="modal-content" style="max-width: 450px;">
@@ -1354,9 +1381,9 @@ if ($seccion === 'inventario') {
                     }
 
                     eventosHtml += `
-                        <div style="${estadoStyle} font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 0.5rem; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; flex-direction: column; line-height: 1.2;">
-                            <span style="font-weight: 600;">• ${ev.titulo}</span>
-                            <span style="font-size: 0.7rem; opacity: 0.85; margin-top: 0.1rem;">${ev.nombre_estudiante}</span>
+                        <div style="${estadoStyle} font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 0.5rem; cursor: pointer; display: flex; flex-direction: column; line-height: 1.2; overflow: hidden;">
+                            <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%;">• ${ev.titulo}</span>
+                            <span style="font-size: 0.7rem; opacity: 0.85; margin-top: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%;">${ev.nombre_estudiante}</span>
                         </div>
                     `;
                 });
@@ -1364,11 +1391,11 @@ if ($seccion === 'inventario') {
                 let celdaActivaStyle = isHoy ? "border: 2px solid #059669;" : "border: 1px solid #e5e7eb;";
 
                 grid.innerHTML += `
-                    <div onclick="mostrarDetalleDia('${fechaStr}', ${d})" style="background: white; min-height: 110px; padding: 0.75rem; border-radius: 0.75rem; cursor: pointer; position: relative; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.02); ${celdaActivaStyle} transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.05)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 2px rgba(0,0,0,0.02)';">
+                    <div onclick="mostrarDetalleDia('${fechaStr}', ${d})" style="background: white; min-height: 110px; padding: 0.75rem; border-radius: 0.75rem; cursor: pointer; position: relative; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.02); ${celdaActivaStyle} transition: transform 0.2s, box-shadow 0.2s; overflow: hidden;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.05)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 2px rgba(0,0,0,0.02)';">
                         <span style="font-size: 0.95rem; font-weight: 600; color: ${isHoy ? '#059669' : '#374151'}; margin-bottom: 0.5rem;">
                             ${d}
                         </span>
-                        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.35rem; overflow: hidden;">
                             ${eventosHtml}
                         </div>
                     </div>
@@ -1737,6 +1764,16 @@ if ($seccion === 'inventario') {
 
         function cerrarModalUsuario() {
             document.getElementById('modal-usuario').classList.remove('active');
+        }
+
+        function abrirModalUsuarioEliminar(id, usuario) {
+            document.getElementById('delete_usr_id').value = id;
+            document.getElementById('delete_usr_nombre').textContent = usuario;
+            document.getElementById('modal-usuario-eliminar').classList.add('active');
+        }
+
+        function cerrarModalUsuarioEliminar() {
+            document.getElementById('modal-usuario-eliminar').classList.remove('active');
         }
 
         // Registrar los event listeners de contraseñas cuando el DOM esté listo

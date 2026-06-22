@@ -91,6 +91,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             
             header("Location: admin.php?seccion=usuarios&msg=Usuario+actualizado+exitosamente");
             exit();
+        } elseif ($accion == 'eliminar') {
+            $id = $_POST['id'];
+            
+            if ($id == $_SESSION['user_id']) {
+                throw new Exception("No puedes eliminar tu propia cuenta mientras estás en sesión.");
+            }
+            
+            eliminar_usuario($con, $id);
+            
+            header("Location: admin.php?seccion=usuarios&msg=Usuario+eliminado+exitosamente");
+            exit();
         }
     } catch (Exception $e) {
         $error = urlencode($e->getMessage());
