@@ -11,9 +11,15 @@ if (!isset($_SESSION['user_id']) || $_SESSION['rol'] !== 'estudiante') {
 $seccion = $_GET['seccion'] ?? 'catalogo';
 
 $libros = [];
+$autores = [];
+$materias = [];
+$idiomas = [];
 if ($seccion === 'catalogo') {
     try {
         $libros = obtener_inventario_libros($con);
+        $autores = obtener_autores($con);
+        $materias = obtener_materias($con);
+        $idiomas = obtener_idiomas($con);
     } catch (Exception $e) {
         $error_db = $e->getMessage();
     }
@@ -120,7 +126,10 @@ function render_notif_bell($prestamos_activos) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal Estudiantil - Oasis Literario</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=<?= filemtime('css/style.css') ?>">
     <style>
         /* Estilos amigables específicos para estudiantes */
         .btn-reservation {
@@ -360,16 +369,42 @@ function render_notif_bell($prestamos_activos) {
         <!-- Contenido Principal -->
         <main class="main-content">
 <?php if ($seccion === 'catalogo'): ?>
-            <header class="top-header">
-                <h1>Catálogo de la Biblioteca</h1>
-                <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
-                    <?= render_notif_bell($prestamos_activos) ?>
-                    <div class="search-box" style="position: relative;">
-                        <!-- Lupa icon -->
-                        <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
-                        <input type="text" id="searchInput" placeholder="Buscar título o libro..." onkeyup="filtrarTabla()"
-                            style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+            <header class="top-header" style="display: block;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h1 style="margin: 0;">Catálogo de la Biblioteca</h1>
+                    <div class="header-actions" style="display: flex; gap: 1rem; align-items: center;">
+                        <?= render_notif_bell($prestamos_activos) ?>
+                        <div class="search-box" style="position: relative;">
+                            <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
+                            <input type="text" id="searchInput" placeholder="Buscar por título..." onkeyup="filtrarTabla()"
+                                style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                        </div>
                     </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; align-items: center;">
+                    <button class="btn-secondary" onclick="limpiarFiltros()" style="padding: 0.65rem 1rem; font-size: 0.85rem; height: fit-content; margin: 0; display: flex; align-items: center; gap: 0.4rem; border-radius: 9999px;">
+                        <span>❌</span> Quitar Filtros
+                    </button>
+                    <!-- Filtros desplegables -->
+                    <select id="filterAutor" onchange="filtrarTabla()" style="padding: 0.65rem 1rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.9rem; cursor: pointer;">
+                        <option value="">Todos los Autores</option>
+                        <?php foreach ($autores as $autor): ?>
+                            <option value="<?= htmlspecialchars($autor['nombre']) ?>"><?= htmlspecialchars($autor['nombre']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select id="filterCategoria" onchange="filtrarTabla()" style="padding: 0.65rem 1rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.9rem; cursor: pointer;">
+                        <option value="">Todas las Categorías</option>
+                        <?php foreach ($materias as $mat): ?>
+                            <option value="<?= htmlspecialchars($mat['nombre']) ?>"><?= htmlspecialchars($mat['nombre']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select id="filterIdioma" onchange="filtrarTabla()" style="padding: 0.65rem 1rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.9rem; cursor: pointer;">
+                        <option value="">Todos los Idiomas</option>
+                        <?php foreach ($idiomas as $idiomaRow): ?>
+                            <option value="<?= htmlspecialchars($idiomaRow['nombre']) ?>"><?= htmlspecialchars($idiomaRow['nombre']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </header>
 
@@ -636,26 +671,91 @@ function render_notif_bell($prestamos_activos) {
 
 
     <script>
-        // Búsqueda instantánea en cliente
+        function limpiarFiltros() {
+            let input = document.getElementById("searchInput");
+            if (input) input.value = '';
+            
+            let filterAutor = document.getElementById("filterAutor");
+            if (filterAutor) filterAutor.value = '';
+            
+            let filterCategoria = document.getElementById("filterCategoria");
+            if (filterCategoria) filterCategoria.value = '';
+            
+            let filterIdioma = document.getElementById("filterIdioma");
+            if (filterIdioma) filterIdioma.value = '';
+            
+            filtrarTabla();
+        }
+
         function filtrarTabla() {
             let input = document.getElementById("searchInput");
-            let filter = input.value.toLowerCase();
-            let table = document.querySelector(".data-table tbody");
+            let filterTitle = input ? input.value.toLowerCase() : "";
+            
+            let selectAutor = document.getElementById("filterAutor");
+            let selectCategoria = document.getElementById("filterCategoria");
+            let selectIdioma = document.getElementById("filterIdioma");
+
+            let filterAutor = selectAutor ? selectAutor.value.toLowerCase() : "";
+            let filterCategoria = selectCategoria ? selectCategoria.value.toLowerCase() : "";
+            let filterIdioma = selectIdioma ? selectIdioma.value.toLowerCase() : "";
+
+            let table = document.querySelector("#student-catalog-table tbody") || document.querySelector(".data-table tbody");
+            if (!table) return;
             let tr = table.getElementsByTagName("tr");
+
+            let validAutores = new Set();
+            let validCategorias = new Set();
+            let validIdiomas = new Set();
 
             for (let i = 0; i < tr.length; i++) {
                 if (tr[i].getElementsByTagName("td").length === 1) continue;
-                
-                // Buscar por Título  (columna index=1)
-                let tdTitulo = tr[i].getElementsByTagName("td")[1];
-                if (tdTitulo) {
-                    let txtValue = tdTitulo.textContent || tdTitulo.innerText;
-                    if (txtValue.toLowerCase().indexOf(filter) > -1) {
+
+                let tdTitle = tr[i].getElementsByTagName("td")[1];
+                let tdAutor = tr[i].getElementsByTagName("td")[2];
+                let tdCategoria = tr[i].getElementsByTagName("td")[3];
+                let tdIdioma = tr[i].getElementsByTagName("td")[4];
+
+                if (tdTitle && tdAutor && tdCategoria && tdIdioma) {
+                    let txtTitleRaw = tdTitle.textContent || tdTitle.innerText;
+                    let txtAutorRaw = (tdAutor.textContent || tdAutor.innerText).trim();
+                    let txtCategoriaRaw = (tdCategoria.textContent || tdCategoria.innerText).trim();
+                    let txtIdiomaRaw = (tdIdioma.textContent || tdIdioma.innerText).trim();
+
+                    let txtTitle = txtTitleRaw.toLowerCase();
+                    let txtAutor = txtAutorRaw.toLowerCase();
+                    let txtCategoria = txtCategoriaRaw.toLowerCase();
+                    let txtIdioma = txtIdiomaRaw.toLowerCase();
+
+                    let matchTitle = txtTitle.indexOf(filterTitle) > -1;
+                    let matchAutor = filterAutor === "" || txtAutor.indexOf(filterAutor) > -1;
+                    let matchCategoria = filterCategoria === "" || txtCategoria.indexOf(filterCategoria) > -1;
+                    let matchIdioma = filterIdioma === "" || txtIdioma.indexOf(filterIdioma) > -1;
+
+                    if (matchTitle && matchAutor && matchCategoria && matchIdioma) {
                         tr[i].style.display = "";
                     } else {
                         tr[i].style.display = "none";
                     }
+
+                    if (matchTitle && matchCategoria && matchIdioma) validAutores.add(txtAutor);
+                    if (matchTitle && matchAutor && matchIdioma) validCategorias.add(txtCategoria);
+                    if (matchTitle && matchAutor && matchCategoria) validIdiomas.add(txtIdioma);
                 }
+            }
+
+            updateSelectOptions(selectAutor, validAutores);
+            updateSelectOptions(selectCategoria, validCategorias);
+            updateSelectOptions(selectIdioma, validIdiomas);
+        }
+
+        function updateSelectOptions(selectEl, validSet) {
+            if (!selectEl) return;
+            let options = selectEl.options;
+            for (let i = 1; i < options.length; i++) {
+                let optVal = options[i].value.toLowerCase();
+                let isValid = validSet.has(optVal);
+                options[i].hidden = !isValid;
+                options[i].style.display = isValid ? "" : "none";
             }
         }
 

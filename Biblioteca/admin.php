@@ -62,6 +62,8 @@ if ($seccion === 'inventario') {
         $librosAlerta = obtener_libros_bajo_stock($con);
         $alumnosDeudores = obtener_estudiantes_con_mas_retrasos($con);
         $logMovimientos = obtener_movimientos_recientes($con);
+        $librosPorIdioma = obtener_libros_por_idioma($con);
+        $topEstudiantes = obtener_top_estudiantes_prestamos($con);
     } catch (Exception $e) {
         $error_db = $e->getMessage();
     }
@@ -74,7 +76,10 @@ if ($seccion === 'inventario') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administrador - Oasis Literario</title>
-    <link rel="stylesheet" href="css/style.css?v=<?= time() ?>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=<?= filemtime('css/style.css') ?>">
 </head>
 
 <body class="admin-body">
@@ -127,17 +132,44 @@ if ($seccion === 'inventario') {
         <!-- Contenido Principal -->
         <main class="main-content">
             <?php if ($seccion === 'inventario'): ?>
-                <header class="top-header">
-                    <h1>Inventario de Libros</h1>
-                    <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
-                        <div class="search-box" style="position: relative;">
-                            <span
-                                style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;"></span>
-                            <input type="text" id="searchInput" placeholder="Buscar por titulo..." onkeyup="filtrarTabla()"
-                                style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                <header class="top-header" style="display: block;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h1 style="margin: 0;">Inventario de Libros</h1>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <div class="search-box" style="position: relative;">
+                                <span
+                                    style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
+                                <input type="text" id="searchInput" placeholder="Buscar por título..." onkeyup="filtrarTabla()"
+                                    style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                            </div>
+                            <button class="btn-primary" onclick="abrirModalCrear()"
+                                style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Libro</button>
                         </div>
-                        <button class="btn-primary" onclick="abrirModalCrear()"
-                            style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Libro</button>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; align-items: center;">
+                        <button class="btn-secondary" onclick="limpiarFiltros()" style="padding: 0.65rem 1rem; font-size: 0.85rem; height: fit-content; margin: 0; display: flex; align-items: center; gap: 0.4rem; border-radius: 9999px;">
+                            <span>❌</span> Quitar Filtros
+                        </button>
+                        <!-- Filtros desplegables -->
+                        <select id="filterAutor" onchange="filtrarTabla()" style="padding: 0.65rem 1rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.9rem; cursor: pointer;">
+                            <option value="">Todos los Autores</option>
+                            <?php foreach ($autores as $autor): ?>
+                                <option value="<?= htmlspecialchars($autor['nombre']) ?>"><?= htmlspecialchars($autor['nombre']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select id="filterCategoria" onchange="filtrarTabla()" style="padding: 0.65rem 1rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.9rem; cursor: pointer;">
+                            <option value="">Todas las Categorías</option>
+                            <?php foreach ($materias as $mat): ?>
+                                <option value="<?= htmlspecialchars($mat['nombre']) ?>"><?= htmlspecialchars($mat['nombre']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select id="filterIdioma" onchange="filtrarTabla()" style="padding: 0.65rem 1rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.9rem; cursor: pointer;">
+                            <option value="">Todos los Idiomas</option>
+                            <?php foreach ($idiomas as $idiomaRow): ?>
+                                <option value="<?= htmlspecialchars($idiomaRow['nombre']) ?>"><?= htmlspecialchars($idiomaRow['nombre']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                 </header>
 
@@ -146,16 +178,16 @@ if ($seccion === 'inventario') {
                         <div
                             style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
                             ✅ <?php
-                                $msg_val = $_GET['msg'];
-                                if ($msg_val === 'eliminado') {
-                                    echo 'Libro eliminado exitosamente.';
-                                } elseif ($msg_val === 'actualizado') {
-                                    echo 'Libro actualizado exitosamente.';
-                                } elseif ($msg_val === 'creado') {
-                                    echo 'Libro registrado exitosamente.';
-                                } else {
-                                    echo htmlspecialchars($msg_val);
-                                }
+                            $msg_val = $_GET['msg'];
+                            if ($msg_val === 'eliminado') {
+                                echo 'Libro eliminado exitosamente.';
+                            } elseif ($msg_val === 'actualizado') {
+                                echo 'Libro actualizado exitosamente.';
+                            } elseif ($msg_val === 'creado') {
+                                echo 'Libro registrado exitosamente.';
+                            } else {
+                                echo htmlspecialchars($msg_val);
+                            }
                             ?>
                         </div>
                     <?php endif; ?>
@@ -883,7 +915,29 @@ if ($seccion === 'inventario') {
                                     <?php endif; ?>
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
+                    <!-- Fila de Gráficos Nivel 3 (Nuevos) -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1.25rem;">
+                        <!-- Chart 4: Libros por Idioma -->
+                        <div style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); padding: 1.5rem; border-radius: 1.25rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03); backdrop-filter: blur(15px); height: 350px; display: flex; flex-direction: column;">
+                            <h3 style="font-family: 'Playfair Display', serif; font-size: 1.2rem; color: #111827; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.5rem;">
+                                <span>🌍</span> Distribución por Idiomas
+                            </h3>
+                            <div style="flex: 1; position: relative; display: flex; justify-content: center; align-items: center; padding: 0.5rem;">
+                                <canvas id="chartIdiomas"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 5: Top Estudiantes (Préstamos) -->
+                        <div style="background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255, 255, 255, 0.6); padding: 1.5rem; border-radius: 1.25rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03); backdrop-filter: blur(15px); height: 350px; display: flex; flex-direction: column;">
+                            <h3 style="font-family: 'Playfair Display', serif; font-size: 1.2rem; color: #111827; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.5rem;">
+                                <span>🏅</span> Top 5 Estudiantes Lectores
+                            </h3>
+                            <div style="flex: 1; position: relative;">
+                                <canvas id="chartEstudiantes"></canvas>
+                            </div>
                         </div>
                     </div>
 
@@ -906,6 +960,12 @@ if ($seccion === 'inventario') {
                     $distribucionEstados['activo_a_tiempo'],
                     $distribucionEstados['retrasado']
                 ];
+
+                $idiomasLabels = array_column($librosPorIdioma, 'idioma');
+                $idiomasData = array_column($librosPorIdioma, 'total');
+
+                $estudiantesLabels = array_column($topEstudiantes, 'estudiante');
+                $estudiantesData = array_column($topEstudiantes, 'total');
                 ?>
 
                 <script>
@@ -1024,6 +1084,65 @@ if ($seccion === 'inventario') {
                                 }
                             });
                         }
+
+                        // --- GRÁFICO 4: LIBROS POR IDIOMA ---
+                        const ctxIdi = document.getElementById('chartIdiomas');
+                        if (ctxIdi) {
+                            new Chart(ctxIdi.getContext('2d'), {
+                                type: 'pie',
+                                data: {
+                                    labels: <?= json_encode($idiomasLabels) ?>,
+                                    datasets: [{
+                                        data: <?= json_encode($idiomasData) ?>,
+                                        backgroundColor: [
+                                            'rgba(239, 68, 68, 0.75)',
+                                            'rgba(245, 158, 11, 0.75)',
+                                            'rgba(16, 185, 129, 0.75)',
+                                            'rgba(59, 130, 246, 0.75)',
+                                            'rgba(139, 92, 246, 0.75)',
+                                            'rgba(107, 114, 128, 0.75)'
+                                        ],
+                                        borderColor: '#ffffff',
+                                        borderWidth: 2
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } }
+                                    }
+                                }
+                            });
+                        }
+
+                        // --- GRÁFICO 5: TOP ESTUDIANTES ---
+                        const ctxTopEst = document.getElementById('chartEstudiantes');
+                        if (ctxTopEst) {
+                            new Chart(ctxTopEst.getContext('2d'), {
+                                type: 'bar',
+                                data: {
+                                    labels: <?= json_encode($estudiantesLabels) ?>,
+                                    datasets: [{
+                                        label: 'Préstamos Totales',
+                                        data: <?= json_encode($estudiantesData) ?>,
+                                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                                        borderColor: '#2563eb',
+                                        borderWidth: 1.5,
+                                        borderRadius: 6
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: { legend: { display: false } },
+                                    scales: {
+                                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' }, ticks: { precision: 0 } },
+                                        x: { grid: { display: false } }
+                                    }
+                                }
+                            });
+                        }
                     });
                 </script>
             <?php endif; ?>
@@ -1136,7 +1255,8 @@ if ($seccion === 'inventario') {
                             <label>Idioma (ID - Nombre)</label>
                             <select name="id_idioma" id="edit_idioma" onchange="verificarNuevo('idioma')">
                                 <option value="">-- Seleccione un idioma --</option>
-                                <option value="NEW" style="font-weight:bold; color:var(--primary);">Agregar Nuevo</option>
+                                <option value="NEW" style="font-weight:bold; color:var(--primary);">Agregar Nuevo
+                                </option>
                                 <?php foreach ($idiomas as $idiomaRow): ?>
                                     <option value="<?= $idiomaRow['id'] ?>">
                                         <?= htmlspecialchars($idiomaRow['nombre']) ?>
@@ -1206,23 +1326,39 @@ if ($seccion === 'inventario') {
                             <label>Correo Electrónico</label>
                             <input type="email" name="correo" id="usr_correo" required placeholder="frank@ejemplo.com">
                         </div>
-                        <div class="form-group full-col" id="usr_clave_wrapper" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group full-col" id="usr_clave_wrapper"
+                            style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group" id="usr_clave_container" style="margin-bottom: 0;">
                                 <label>Contraseña</label>
                                 <input type="password" name="clave" id="usr_clave" required placeholder="••••••••">
-                                <div id="password-requirements" style="margin-top: 0.5rem; font-size: 0.75rem; line-height: 1.5; color: var(--text-light); display: flex; flex-direction: column; gap: 0.2rem;">
-                                    <span id="req-length" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Entre 8 y 20 caracteres</span>
-                                    <span id="req-upper" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al menos una mayúscula (A-Z)</span>
-                                    <span id="req-lower" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al menos una minúscula (a-z)</span>
-                                    <span id="req-number" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al menos un número (0-9)</span>
-                                    <span id="req-spaces" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Sin espacios en blanco</span>
+                                <div id="password-requirements"
+                                    style="margin-top: 0.5rem; font-size: 0.75rem; line-height: 1.5; color: var(--text-light); display: flex; flex-direction: column; gap: 0.2rem;">
+                                    <span id="req-length"
+                                        style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌
+                                        Entre 8 y 20 caracteres</span>
+                                    <span id="req-upper"
+                                        style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al
+                                        menos una mayúscula (A-Z)</span>
+                                    <span id="req-lower"
+                                        style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al
+                                        menos una minúscula (a-z)</span>
+                                    <span id="req-number"
+                                        style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Al
+                                        menos un número (0-9)</span>
+                                    <span id="req-spaces"
+                                        style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Sin
+                                        espacios en blanco</span>
                                 </div>
                             </div>
                             <div class="form-group" id="usr_confirmar_clave_container" style="margin-bottom: 0;">
                                 <label>Confirmar Contraseña</label>
-                                <input type="password" name="confirmar_clave" id="usr_confirmar_clave" required placeholder="••••••••">
-                                <div id="password-match-container" style="margin-top: 0.5rem; font-size: 0.75rem; line-height: 1.5;">
-                                    <span id="password-match-msg" style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Las contraseñas no coinciden</span>
+                                <input type="password" name="confirmar_clave" id="usr_confirmar_clave" required
+                                    placeholder="••••••••">
+                                <div id="password-match-container"
+                                    style="margin-top: 0.5rem; font-size: 0.75rem; line-height: 1.5;">
+                                    <span id="password-match-msg"
+                                        style="color: #dc2626; display: flex; align-items: center; gap: 0.25rem;">❌ Las
+                                        contraseñas no coinciden</span>
                                 </div>
                             </div>
                         </div>
@@ -1580,7 +1716,7 @@ if ($seccion === 'inventario') {
             document.getElementById('edit_cantidad').value = '5'; // Stock predeterminado de 5
             document.getElementById('edit_num_pag').value = '';
             document.getElementById('edit_anio_edicion').value = '';
-            
+
             // Seleccionar 'Español' por defecto en el select de idioma
             let selectIdioma = document.getElementById('edit_idioma');
             if (selectIdioma) {
@@ -1609,7 +1745,7 @@ if ($seccion === 'inventario') {
             verificarNuevo('editorial');
             verificarNuevo('materia');
             verificarNuevo('idioma');
-            
+
             document.getElementById('edit_id').value = libro.id;
             document.getElementById('edit_titulo').value = libro.titulo;
             document.getElementById('edit_autor').value = libro.id_autor || '';
@@ -1618,7 +1754,7 @@ if ($seccion === 'inventario') {
             document.getElementById('edit_cantidad').value = libro.cantidad;
             document.getElementById('edit_num_pag').value = libro.num_pag || '';
             document.getElementById('edit_anio_edicion').value = libro.anio_edicion || '';
-            
+
             document.getElementById('edit_idioma').value = libro.id_idioma || '';
 
             document.getElementById('modal-edicion').classList.add('active');
@@ -1639,26 +1775,94 @@ if ($seccion === 'inventario') {
         }
 
         // Filtro de búsqueda instantánea para la tabla de libros
+        function limpiarFiltros() {
+            let input = document.getElementById("searchInput");
+            if (input) input.value = '';
+            
+            let filterAutor = document.getElementById("filterAutor");
+            if (filterAutor) filterAutor.value = '';
+            
+            let filterCategoria = document.getElementById("filterCategoria");
+            if (filterCategoria) filterCategoria.value = '';
+            
+            let filterIdioma = document.getElementById("filterIdioma");
+            if (filterIdioma) filterIdioma.value = '';
+            
+            filtrarTabla();
+        }
+
         function filtrarTabla() {
             let input = document.getElementById("searchInput");
-            let filter = input.value.toLowerCase();
-            let table = document.querySelector(".data-table tbody");
+            let filterTitle = input ? input.value.toLowerCase() : "";
+            
+            let selectAutor = document.getElementById("filterAutor");
+            let selectCategoria = document.getElementById("filterCategoria");
+            let selectIdioma = document.getElementById("filterIdioma");
+
+            let filterAutor = selectAutor ? selectAutor.value.toLowerCase() : "";
+            let filterCategoria = selectCategoria ? selectCategoria.value.toLowerCase() : "";
+            let filterIdioma = selectIdioma ? selectIdioma.value.toLowerCase() : "";
+
+            let table = document.querySelector("#inventory-table tbody") || document.querySelector(".data-table tbody");
+            if (!table) return;
             let tr = table.getElementsByTagName("tr");
+
+            let validAutores = new Set();
+            let validCategorias = new Set();
+            let validIdiomas = new Set();
 
             for (let i = 0; i < tr.length; i++) {
                 // Ignorar filas que no tienen datos (ej: "No hay libros")
                 if (tr[i].getElementsByTagName("td").length === 1) continue;
 
-                // Buscar en la segunda celda [índice 1] (Título)
-                let td = tr[i].getElementsByTagName("td")[1];
-                if (td) {
-                    let txtValue = td.textContent || td.innerText;
-                    if (txtValue.toLowerCase().indexOf(filter) > -1) {
+                let tdTitle = tr[i].getElementsByTagName("td")[1];
+                let tdAutor = tr[i].getElementsByTagName("td")[2];
+                let tdCategoria = tr[i].getElementsByTagName("td")[3];
+                let tdIdioma = tr[i].getElementsByTagName("td")[4];
+
+                if (tdTitle && tdAutor && tdCategoria && tdIdioma) {
+                    let txtTitleRaw = tdTitle.textContent || tdTitle.innerText;
+                    let txtAutorRaw = (tdAutor.textContent || tdAutor.innerText).trim();
+                    let txtCategoriaRaw = (tdCategoria.textContent || tdCategoria.innerText).trim();
+                    let txtIdiomaRaw = (tdIdioma.textContent || tdIdioma.innerText).trim();
+
+                    let txtTitle = txtTitleRaw.toLowerCase();
+                    let txtAutor = txtAutorRaw.toLowerCase();
+                    let txtCategoria = txtCategoriaRaw.toLowerCase();
+                    let txtIdioma = txtIdiomaRaw.toLowerCase();
+
+                    let matchTitle = txtTitle.indexOf(filterTitle) > -1;
+                    let matchAutor = filterAutor === "" || txtAutor.indexOf(filterAutor) > -1;
+                    let matchCategoria = filterCategoria === "" || txtCategoria.indexOf(filterCategoria) > -1;
+                    let matchIdioma = filterIdioma === "" || txtIdioma.indexOf(filterIdioma) > -1;
+
+                    if (matchTitle && matchAutor && matchCategoria && matchIdioma) {
                         tr[i].style.display = "";
                     } else {
                         tr[i].style.display = "none";
                     }
+
+                    // Lógica para desplegables dinámicos: si la fila sería visible sin considerar este propio filtro
+                    if (matchTitle && matchCategoria && matchIdioma) validAutores.add(txtAutor);
+                    if (matchTitle && matchAutor && matchIdioma) validCategorias.add(txtCategoria);
+                    if (matchTitle && matchAutor && matchCategoria) validIdiomas.add(txtIdioma);
                 }
+            }
+
+            // Actualizar opciones mostradas en los desplegables
+            updateSelectOptions(selectAutor, validAutores);
+            updateSelectOptions(selectCategoria, validCategorias);
+            updateSelectOptions(selectIdioma, validIdiomas);
+        }
+
+        function updateSelectOptions(selectEl, validSet) {
+            if (!selectEl) return;
+            let options = selectEl.options;
+            for (let i = 1; i < options.length; i++) { // Evitar ocultar el primer <option> ("Todos...")
+                let optVal = options[i].value.toLowerCase();
+                let isValid = validSet.has(optVal);
+                options[i].hidden = !isValid;
+                options[i].style.display = isValid ? "" : "none";
             }
         }
 
@@ -1717,6 +1921,8 @@ if ($seccion === 'inventario') {
             }
         }
 
+        let currentRandomSuffix = '';
+
         function abrirModalUsuarioCrear() {
             document.getElementById('usr_modal_title').textContent = 'Registrar Nuevo Usuario';
             document.getElementById('usr_accion').value = 'crear';
@@ -1724,7 +1930,17 @@ if ($seccion === 'inventario') {
 
             document.getElementById('usr_usuario').value = '';
             document.getElementById('usr_nombre').value = '';
-            document.getElementById('usr_correo').value = '';
+
+            // Generar un sufijo numérico aleatorio para este nuevo usuario
+            currentRandomSuffix = Math.floor(1000 + Math.random() * 9000);
+
+            // Hacer el correo automático y readonly al crear
+            let correoInput = document.getElementById('usr_correo');
+            correoInput.value = '';
+            correoInput.readOnly = true;
+            correoInput.style.backgroundColor = '#f3f4f6';
+            correoInput.placeholder = " ";
+
             document.getElementById('usr_rol').value = 'estudiante';
             document.getElementById('usr_estado').value = '1';
 
@@ -1748,7 +1964,14 @@ if ($seccion === 'inventario') {
 
             document.getElementById('usr_usuario').value = usr.usuario;
             document.getElementById('usr_nombre').value = usr.nombre;
-            document.getElementById('usr_correo').value = usr.correo;
+
+            // Permitir editar el correo
+            let correoInput = document.getElementById('usr_correo');
+            correoInput.value = usr.correo;
+            correoInput.readOnly = false;
+            correoInput.style.backgroundColor = '';
+            correoInput.placeholder = "frank@ejemplo.com";
+
             document.getElementById('usr_rol').value = usr.rol;
             document.getElementById('usr_estado').value = usr.estado;
 
@@ -1781,14 +2004,30 @@ if ($seccion === 'inventario') {
             const usrClave = document.getElementById('usr_clave');
             const usrConfirmarClave = document.getElementById('usr_confirmar_clave');
             const formUsuario = document.getElementById('form-usuario');
+            const usrUsuario = document.getElementById('usr_usuario');
 
             if (usrClave && usrConfirmarClave) {
                 usrClave.addEventListener('input', validarContrasenaRealTime);
                 usrConfirmarClave.addEventListener('input', validarContrasenaRealTime);
             }
 
+            if (usrUsuario) {
+                usrUsuario.addEventListener('input', function () {
+                    let accion = document.getElementById('usr_accion').value;
+                    if (accion === 'crear') {
+                        let username = this.value.trim().toLowerCase().replace(/\s+/g, '');
+                        let correoInput = document.getElementById('usr_correo');
+                        if (username) {
+                            correoInput.value = username + currentRandomSuffix + '@utp.edu.pe';
+                        } else {
+                            correoInput.value = '';
+                        }
+                    }
+                });
+            }
+
             if (formUsuario) {
-                formUsuario.addEventListener('submit', function(e) {
+                formUsuario.addEventListener('submit', function (e) {
                     let accion = document.getElementById('usr_accion').value;
                     if (accion === 'crear') {
                         let ok = validarContrasenaRealTime();

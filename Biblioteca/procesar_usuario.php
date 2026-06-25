@@ -16,6 +16,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $usuario = trim($_POST['usuario']);
             $nombre = trim($_POST['nombre']);
             $correo = trim($_POST['correo']);
+            
+            if (!preg_match('/@utp\.edu\.pe$/', $correo)) {
+                throw new Exception("El correo debe tener el dominio institucional @utp.edu.pe");
+            }
             $clave = $_POST['clave'] ?? '';
             $confirmar_clave = $_POST['confirmar_clave'] ?? '';
             $rol = $_POST['rol'];

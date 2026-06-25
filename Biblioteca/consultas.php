@@ -806,4 +806,43 @@ function obtener_movimientos_recientes($con, $limite = 5)
     }
 }
 
+/**
+ * Obtiene la cantidad de libros por idioma.
+ */
+function obtener_libros_por_idioma($con)
+{
+    try {
+        $sql = "SELECT i.nombre as idioma, COUNT(l.id) as total 
+                FROM libros l 
+                JOIN idiomas i ON l.id_idioma = i.id 
+                GROUP BY l.id_idioma 
+                ORDER BY total DESC";
+        return $con->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar libros por idioma: " . $e->getMessage());
+    }
+}
+
+/**
+ * Obtiene el top de estudiantes con más préstamos históricos.
+ */
+function obtener_top_estudiantes_prestamos($con, $limite = 5)
+{
+    try {
+        $sql = "SELECT e.nombre as estudiante, COUNT(p.id) as total 
+                FROM prestamos p 
+                JOIN estudiantes e ON p.id_estudiante = e.id 
+                GROUP BY p.id_estudiante 
+                ORDER BY total DESC 
+                LIMIT :limite";
+        $stmt = $con->prepare($sql);
+        $stmt->bindValue(':limite', $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        throw new Exception("Error al cargar top estudiantes: " . $e->getMessage());
+    }
+}
+
+
 ?>
